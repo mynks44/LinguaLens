@@ -1,0 +1,8 @@
+.wrap { max-width: 900px; margin: 0 auto; }
+.controls { display: flex; gap: 8px; margin-bottom: 10px; }
+.controls input, .controls select { padding: 6px; }
+.stats { display: flex; gap: 12px; margin-bottom: 10px; font-weight: 600; }
+.stats .count { margin-left: auto; }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th, .tbl td { border: 1px solid #ddd; padding: 8px; }
+.tbl th { background: #f6f6f6; text-align: left; }

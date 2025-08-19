@@ -1,0 +1,50 @@
+<div class="grid">
+  <section class="left">
+    <label>Source language</label>
+    <select [(ngModel)]="fromLang">
+      <option value="en">English</option>
+      <option value="fr">French</option>
+      <option value="es">Spanish</option>
+      <option value="de">German</option>
+      <option value="hi">Hindi</option>
+    </select>
+
+    <label>Target language</label>
+    <select [(ngModel)]="toLang">
+      <option value="fr">French</option>
+      <option value="en">English</option>
+      <option value="es">Spanish</option>
+      <option value="de">German</option>
+      <option value="hi">Hindi</option>
+    </select>
+
+    <label>Paste your paragraph</label>
+    <textarea rows="10" [(ngModel)]="sourceText" placeholder="Paste text here..."></textarea>
+
+    <button (click)="doTranslate()">Translate →</button>
+  </section>
+
+  <section class="right">
+    <div class="actions">
+      <button (click)="speak()">🔊 Listen paragraph</button>
+    </div>
+
+    <div class="target" (click)="clickToken($event)" (mouseup)="mouseUpSelection()">
+      <ng-container *ngFor="let t of tokens">
+        <span class="tok" [class.word]="isWord(t)">{{ t }}</span>
+
+      </ng-container>
+    </div>
+  </section>
+</div>
+
+<app-popup-translation
+  [visible]="popup.visible"
+  [x]="popup.x"
+  [y]="popup.y"
+  [text]="popup.text"
+  [translation]="popup.translation"
+  (speak)="speak(popup.text)"
+  (markKnown)="markKnown()"
+  (close)="hidePopup()">
+</app-popup-translation>

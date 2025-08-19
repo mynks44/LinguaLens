@@ -1,0 +1,5 @@
+.popup { position: fixed; z-index: 1000; transform: translate(8px, -8px); }
+.card { background:#fff; border:1px solid #ddd; border-radius:8px; padding:8px 12px; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+.term { font-weight:700; margin-bottom:4px; }
+.translation { margin-bottom:8px; }
+.actions button { margin-right:6px; }

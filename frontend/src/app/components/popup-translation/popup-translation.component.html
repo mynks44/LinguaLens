@@ -1,0 +1,11 @@
+<div *ngIf="visible" class="popup" [ngStyle]="{ left: x + 'px', top: y + 'px' }">
+  <div class="card">
+    <div class="term">{{text}}</div>
+    <div class="translation">{{translation}}</div>
+    <div class="actions">
+      <button (click)="speak.emit()">🔊 Speak</button>
+      <button (click)="markKnown.emit()">Mark known</button>
+      <button (click)="close.emit()">Close</button>
+    </div>
+  </div>
+</div>
