@@ -1,0 +1,26 @@
+{
+  "name": "language-coach",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+  "start": "concurrently -c green,cyan -n API,WEB \"npm --prefix ./backend start\" \"npm --prefix ./frontend start\"",
+  "start:ready": "concurrently -c green,cyan -n API,WEB \"npm --prefix ./backend start\" \"wait-on tcp:3000 && npm --prefix ./frontend start\""
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mynks44/LinguaLens.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mynks44/LinguaLens/issues"
+  },
+  "homepage": "https://github.com/mynks44/LinguaLens#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "wait-on": "^8.0.4"
+  }
+}
