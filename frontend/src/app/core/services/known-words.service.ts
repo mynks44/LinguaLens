@@ -1,68 +1,126 @@
 import { Injectable } from '@angular/core';
+import { FirebaseService } from './firebase.service';
+import {
+  addDoc, collection, deleteDoc, doc, getDocs, query, where, orderBy, writeBatch
+} from 'firebase/firestore';
 
-export type KnownWord = {
-  text: string;          
-  lang: string;          
-  addedAt: number;       
-};
+export type KnownWord = { id?: string; text: string; lang: string; addedAt: number; userId?: string };
 
-const STORAGE_KEY = 'lc_known_words_v1';
+const LOCAL_STORAGE_KEY = 'lc_known_words_v1';
+const MIGRATION_FLAG = 'lc_known_words_migrated_v1';
 
 @Injectable({ providedIn: 'root' })
 export class KnownWordsService {
-  private cache: KnownWord[] = this.load();
+  constructor(private fb: FirebaseService) {}
 
-  private load(): KnownWord[] {
+  private col() { return collection(this.fb.db, 'knownWords'); }
+
+  private async migrateIfNeeded() {
+    await this.fb.ready;
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) { localStorage.setItem(MIGRATION_FLAG, '1'); return; }
+
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as KnownWord[]) : [];
-    } catch {
-      return [];
+      const items: Array<{ text: string; lang: string; addedAt: number }> = JSON.parse(raw) || [];
+      if (!items.length) { localStorage.setItem(MIGRATION_FLAG, '1'); return; }
+
+      const uid = this.fb.uid();
+      if (!uid) throw new Error('No UID after anon auth');
+
+      let batch = writeBatch(this.fb.db);
+      let count = 0;
+
+      for (const w of items) {
+        const ref = doc(this.col());
+        batch.set(ref, {
+          userId: uid,
+          text: String(w.text || '').trim(),
+          lang: String(w.lang || '').trim(),
+          addedAt: Number(w.addedAt || Date.now())
+        });
+        if (++count % 450 === 0) { await batch.commit(); batch = writeBatch(this.fb.db); }
+      }
+      await batch.commit();
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.setItem(MIGRATION_FLAG, '1');
+      console.info(`[KnownWords] Migrated ${count} legacy items`);
+    } catch (e: any) {
+      console.warn('[KnownWords] migration failed:', e?.message || e);
     }
   }
 
-  private save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.cache));
+async list(filter?: { lang?: string; q?: string }): Promise<KnownWord[]> {
+  await this.fb.ready;
+  await this.migrateIfNeeded();
+
+  const uid = this.fb.uid();
+  if (!uid) throw new Error('No UID');
+
+  const clauses = [where('userId', '==', uid)];
+  if (filter?.lang) clauses.push(where('lang', '==', filter.lang));
+
+  const qref = query(this.col(), ...clauses);
+
+  const snap = await getDocs(qref);
+  let items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }) as KnownWord);
+
+  if (filter?.q) {
+    const qlc = filter.q.toLowerCase();
+    items = items.filter(x => x.text?.toLowerCase().includes(qlc));
   }
 
-  list(): KnownWord[] {
-    // newest first
-    return [...this.cache].sort((a, b) => b.addedAt - a.addedAt);
+  items.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+
+  return items;
+}
+
+
+  async has(text: string, lang: string) {
+    const t = (text || '').trim().toLowerCase();
+    if (!t || !lang) return false;
+    const items = await this.list({ lang });
+    return items.some(w => w.text?.toLowerCase() === t);
   }
 
-  has(text: string, lang: string): boolean {
-    const t = text.trim().toLowerCase();
-    return this.cache.some(w => w.lang === lang && w.text.toLowerCase() === t);
-  }
+  async add(text: string, lang: string) {
+    await this.fb.ready;
+    await this.migrateIfNeeded();
 
-  add(text: string, lang: string) {
     const t = (text || '').trim();
     if (!t) return;
-    if (!this.has(t, lang)) {
-      this.cache.push({ text: t, lang, addedAt: Date.now() });
-      this.save();
+
+    const uid = this.fb.uid();
+    if (!uid) throw new Error('No UID');
+
+    if (await this.has(t, lang)) return;
+
+    try {
+      await addDoc(this.col(), { userId: uid, text: t, lang, addedAt: Date.now() });
+    } catch (e: any) {
+      console.error('[KnownWords] add failed:', e?.code, e?.message || e);
+      throw e;
     }
   }
 
-  remove(text: string, lang: string) {
-    const t = text.trim().toLowerCase();
-    this.cache = this.cache.filter(w => !(w.lang === lang && w.text.toLowerCase() === t));
-    this.save();
+  async removeById(id: string) {
+    await this.fb.ready;
+    await deleteDoc(doc(this.fb.db, 'knownWords', id));
   }
 
-  clearAll() {
-    this.cache = [];
-    this.save();
+  async clearAll() {
+    const items = await this.list();
+    for (const w of items) if (w.id) await this.removeById(w.id);
   }
 
-  statsByLang(): Record<string, number> {
-    return this.cache.reduce<Record<string, number>>((acc, w) => {
-      acc[w.lang] = (acc[w.lang] || 0) + 1;
-      return acc;
-    }, {});
+  async statsByLang() {
+    const items = await this.list();
+    return items.reduce<Record<string, number>>((acc, w) => ((acc[w.lang] = (acc[w.lang] || 0) + 1), acc), {});
   }
 
-  exportJson(): string {
-    return JSON.stringify(this.list(), null, 2);
+  async exportJson() {
+    const items = await this.list();
+    return JSON.stringify(items, null, 2);
   }
 }

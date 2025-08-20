@@ -22,14 +22,26 @@ export class ReaderComponent {
   tokens: string[] = [];
 
   popup = { visible: false, x: 0, y: 0, text: '', translation: '' };
-isWord = isWord;
-  constructor(private translate: TranslateService, private tts: TtsService,   private known: KnownWordsService) {}
+  isWord = isWord;
+
+  constructor(
+    private translate: TranslateService,
+    private tts: TtsService,
+    private known: KnownWordsService
+  ) {}
 
   async doTranslate() {
-    const res = await firstValueFrom(this.translate.translate(this.sourceText, this.fromLang, this.toLang));
-    const translatedText = res?.translatedText || '';
-    this.tokens = tokenizePreserve(translatedText);
-    this.hidePopup();
+    try {
+      const res = await firstValueFrom(
+        this.translate.translate(this.sourceText, this.fromLang, this.toLang)
+      );
+      const translatedText = res?.translatedText || '';
+      this.tokens = tokenizePreserve(translatedText);
+      this.hidePopup();
+    } catch (e: any) {
+      alert('Translate failed. Please try again.');
+      console.error(e);
+    }
   }
 
   async clickToken(ev: MouseEvent) {
@@ -38,8 +50,21 @@ isWord = isWord;
     const word = (el.textContent || '').trim();
     if (!word || !isWord(word)) return;
 
-    const res = await firstValueFrom(this.translate.translate(word, this.toLang, this.fromLang));
-    this.popup = { visible: true, x: ev.clientX, y: ev.clientY, text: word, translation: res?.translatedText || '' };
+    try {
+      const res = await firstValueFrom(
+        this.translate.translate(word, this.toLang, this.fromLang)
+      );
+      this.popup = {
+        visible: true,
+        x: ev.clientX,
+        y: ev.clientY,
+        text: word,
+        translation: res?.translatedText || ''
+      };
+    } catch (e: any) {
+      alert('Lookup failed. Please try again.');
+      console.error(e);
+    }
   }
 
   async mouseUpSelection() {
@@ -48,29 +73,48 @@ isWord = isWord;
     const text = sel.toString().trim();
     if (!text) return;
 
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    const res = await firstValueFrom(this.translate.translate(text, this.toLang, this.fromLang));
-    this.popup = { visible: true, x: rect.right, y: rect.top, text, translation: res?.translatedText || '' };
+    const range = sel.rangeCount ? sel.getRangeAt(0) : null;
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+
+    try {
+      const res = await firstValueFrom(
+        this.translate.translate(text, this.toLang, this.fromLang)
+      );
+      this.popup = {
+        visible: true,
+        x: rect.right,
+        y: rect.top,
+        text,
+        translation: res?.translatedText || ''
+      };
+    } catch (e: any) {
+      alert('Selection lookup failed. Please try again.');
+      console.error(e);
+    }
   }
 
   speak(text?: string) {
     this.tts.speak(text || this.tokens.join(' '), this.toLangToBcp47());
   }
-  // markKnown() { this.hidePopup(); } 
-  
-  markKnown() {
-  if (this.popup.text) {
-    // save the selected word/phrase in the TARGET language (the one you’re learning)
-    this.known.add(this.popup.text, this.toLang);
-    alert(`Saved as known: "${this.popup.text}" [${this.toLang}]`);
+
+  async markKnown() {
+    if (this.popup.text) {
+      try {
+        await this.known.add(this.popup.text, this.toLang); 
+        alert(`Saved as known: "${this.popup.text}" [${this.toLang}]`);
+      } catch (e: any) {
+        alert('Could not save the word. Check your internet and Firebase rules.');
+        console.error(e);
+      }
+    }
+    this.hidePopup();
   }
-  this.hidePopup();
-}
 
   hidePopup() { this.popup.visible = false; }
 
   toLangToBcp47() {
-    const m: any = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
+    const m: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
     return m[this.toLang] || this.toLang;
   }
 }
