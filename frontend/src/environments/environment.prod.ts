@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiBase: 'https://<YOUR-BACKEND>.onrender.com', // <-- replace after backend deploy
+  apiBase: 'https://lingualens-pqda.onrender.com', // <-- replace after backend deploy
   firebase: {
     apiKey: "AIzaSyDOU_U6go1gjVmQ5v5aL-19jXpdj4mQ-Kg",
     authDomain: "lingualens-403ed.firebaseapp.com",
