@@ -1,9 +1,36 @@
 <div *ngIf="visible" class="popup" [ngStyle]="{ left: x + 'px', top: y + 'px' }">
   <div class="card">
-    <div class="term">{{text}}</div>
-    <div class="translation">{{translation}}</div>
+    <div class="term">{{ text }}</div>
+
+    <div class="translation" *ngIf="translation">
+      <b>Translation:</b> {{ translation }}
+    </div>
+
+    <div class="meaning">
+      <div class="row" *ngIf="phonetic || dictAudioUrl">
+        <span *ngIf="phonetic" class="phonetic">/{{ phonetic }}/</span>
+        <button *ngIf="dictAudioUrl" (click)="playPron()">🔊 Pronounce</button>
+      </div>
+
+      <div class="defs" *ngIf="definitions?.length">
+        <b>Definitions:</b>
+        <ol>
+          <li *ngFor="let d of definitions">
+            <span *ngIf="d.pos" class="pos">({{d.pos}})</span>
+            {{ d.def }}
+            <div *ngIf="d.example" class="ex">“{{ d.example }}”</div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="syns" *ngIf="synonyms?.length">
+        <b>Synonyms:</b>
+        <span class="chip" *ngFor="let s of synonyms">{{ s }}</span>
+      </div>
+    </div>
+
     <div class="actions">
-      <button (click)="speak.emit()">🔊 Speak</button>
+      <button (click)="speak.emit()">🔈 Speak</button>
       <button (click)="markKnown.emit()">Mark known</button>
       <button (click)="close.emit()">Close</button>
     </div>

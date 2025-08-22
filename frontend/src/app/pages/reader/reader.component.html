@@ -26,13 +26,13 @@
 
   <section class="right">
     <div class="actions">
-      <button (click)="speak()">🔊 Listen paragraph</button>
+      <!-- Paragraph TTS -->
+      <app-audio-player [text]="tokens.join(' ')" [lang]="toLangToBcp47()"></app-audio-player>
     </div>
 
     <div class="target" (click)="clickToken($event)" (mouseup)="mouseUpSelection()">
       <ng-container *ngFor="let t of tokens">
-        <span class="tok" [class.word]="isWord(t)">{{ t }}</span>
-
+        <span class="tok" [class.word]="t && isWord(t)">{{ t }}</span>
       </ng-container>
     </div>
   </section>
@@ -44,7 +44,14 @@
   [y]="popup.y"
   [text]="popup.text"
   [translation]="popup.translation"
+
+  [phonetic]="popup.phonetic"
+  [dictAudioUrl]="popup.dictAudioUrl"
+  [definitions]="popup.definitions"
+  [synonyms]="popup.synonyms"
+
   (speak)="speak(popup.text)"
+  (playPronAudio)="playPronAudio()"
   (markKnown)="markKnown()"
   (close)="hidePopup()">
 </app-popup-translation>
