@@ -1,0 +1,66 @@
+<div class="wrap">
+  <h2>Progress</h2>
+
+  <div class="controls">
+    <label>Language</label>
+    <select [(ngModel)]="lang" (change)="refresh()">
+      <option value="fr">French</option>
+      <option value="en">English</option>
+      <option value="es">Spanish</option>
+      <option value="de">German</option>
+      <option value="hi">Hindi</option>
+    </select>
+    <button (click)="refresh()">Refresh</button>
+  </div>
+
+  <div *ngIf="loading">Loading…</div>
+
+  <div *ngIf="data" class="cards">
+    <div class="card">
+      <div class="title">Totals</div>
+      <div>Total words: <b>{{ data.totalWords }}</b></div>
+      <div>Seen (sum): {{ data.seenSum }}</div>
+      <div>Known (sum): {{ data.knownSum }}</div>
+      <div>Heard (sum): {{ data.heardSum }}</div>
+    </div>
+
+    <div class="card">
+      <div class="title">Confidence Bands</div>
+      <div>Strong (≥0.8): {{ data.strong }}</div>
+      <div>Medium (0.5–0.79): {{ data.medium }}</div>
+      <div>Weak (<0.5): {{ data.weak }}</div>
+    </div>
+  </div>
+
+  <div class="lists">
+    <div class="list">
+      <h3>Needs Review (lowest confidence)</h3>
+      <table *ngIf="topLow.length; else nlow">
+        <tr><th>Word</th><th>Conf</th></tr>
+        <tr *ngFor="let r of topLow">
+          <td>{{ r.word }}</td>
+          <td>
+            <div class="bar"><span [ngStyle]="confBarStyle(r.confidence)"></span></div>
+            {{ (r.confidence || 0) | number:'1.2-2' }}
+          </td>
+        </tr>
+      </table>
+      <ng-template #nlow><p>None yet.</p></ng-template>
+    </div>
+
+    <div class="list">
+      <h3>Strongest (highest confidence)</h3>
+      <table *ngIf="topHigh.length; else nhigh">
+        <tr><th>Word</th><th>Conf</th></tr>
+        <tr *ngFor="let r of topHigh">
+          <td>{{ r.word }}</td>
+          <td>
+            <div class="bar"><span [ngStyle]="confBarStyle(r.confidence)"></span></div>
+            {{ (r.confidence || 0) | number:'1.2-2' }}
+          </td>
+        </tr>
+      </table>
+      <ng-template #nhigh><p>None yet.</p></ng-template>
+    </div>
+  </div>
+</div>

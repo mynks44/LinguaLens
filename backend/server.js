@@ -7,6 +7,7 @@ const compression = require('compression');
 
 const translateRoutes = require('./routes/translate');
 const generatorRoutes = require('./routes/generator');
+const progressRoutes  = require('./routes/progress');
 
 const app = express();
 
@@ -15,7 +16,9 @@ app.use(helmet());
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '1mb' }));
+app.use('/progress', progressRoutes);
 
+// CORS: allow list, no trailing slash
 const allowed = (process.env.CORS_ORIGINS || 'http://localhost:4200')
   .split(',')
   .map(s => s.trim())
@@ -28,12 +31,13 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.options('*', cors()); 
+app.options('*', cors());
 
 app.get('/health', (req, res) => res.status(200).json({ ok: true, time: new Date().toISOString() }));
 
 app.use('/translate', translateRoutes);
 app.use('/generator', generatorRoutes);
+app.use('/progress',  progressRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found', path: req.originalUrl }));
 

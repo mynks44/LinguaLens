@@ -1,13 +1,17 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgStyle } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
+
 import { TranslateService } from '../../core/services/translate.service';
 import { TtsService } from '../../core/services/tts.service';
-import { tokenizePreserve, isWord } from '../../core/utils/tokenize';
-import { PopupTranslationComponent } from '../../components/popup-translation/popup-translation.component';
-import { firstValueFrom } from 'rxjs';
 import { KnownWordsService } from '../../core/services/known-words.service';
 import { MeaningService } from '../../core/services/meaning.service';
+import { ProgressService } from '../../core/services/progress.service';
+import { FirebaseService } from '../../core/services/firebase.service';
+
+import { tokenizePreserve, isWord } from '../../core/utils/tokenize';
+import { PopupTranslationComponent } from '../../components/popup-translation/popup-translation.component';
 import { AudioPlayerComponent } from '../../components/audio-player/audio-player.component';
 
 @Component({
@@ -38,22 +42,34 @@ export class ReaderComponent {
     private translate: TranslateService,
     private tts: TtsService,
     private known: KnownWordsService,
-    private meaning: MeaningService
+    private meaning: MeaningService,
+    private progress: ProgressService,   
+    private fb: FirebaseService          
   ) {}
 
-  async doTranslate() {
-    try {
-      const res = await firstValueFrom(
-        this.translate.translate(this.sourceText, this.fromLang, this.toLang)
-      );
-      const translatedText = res?.translatedText || '';
-      this.tokens = tokenizePreserve(translatedText);
-      this.hidePopup();
-    } catch (e) {
-      alert('Translate failed. Please try again.');
-      console.error(e);
+async doTranslate() {
+  try {
+    const res = await firstValueFrom(
+      this.translate.translate(this.sourceText, this.fromLang, this.toLang)
+    );
+    const translatedText = res?.translatedText || '';
+    this.tokens = tokenizePreserve(translatedText);
+    this.hidePopup();
+
+    // Record seen events
+    const uid = this.fb.uid() || 'anon';
+    const words = Array.from(new Set(this.tokens.filter(t => isWord(t))));
+    for (const w of words.slice(0, 50)) {
+      this.progress
+        .recordEvent(uid, w, this.toLang, 'seen')
+        .subscribe({ next: () => {}, error: () => {} });
     }
+  } catch (e: any) {
+    alert('Translate failed. Please try again.');
+    console.error(e);
   }
+}
+
 
   async clickToken(ev: MouseEvent) {
     const el = ev.target as HTMLElement;
@@ -62,13 +78,9 @@ export class ReaderComponent {
     if (!word || !isWord(word)) return;
 
     try {
-      // back translation for clarity
-      const back = await firstValueFrom(
-        this.translate.translate(word, this.toLang, this.fromLang)
-      );
+      const back = await firstValueFrom(this.translate.translate(word, this.toLang, this.fromLang));
       const backText = back?.translatedText || '';
 
-      // dictionary lookup in EN
       let dictLookupWord = word;
       if (this.toLang !== 'en') {
         const toEn = await firstValueFrom(this.translate.translate(word, this.toLang, 'en'));
@@ -113,9 +125,7 @@ export class ReaderComponent {
     const rect = range.getBoundingClientRect();
 
     try {
-      const res = await firstValueFrom(
-        this.translate.translate(text, this.toLang, this.fromLang)
-      );
+      const res = await firstValueFrom(this.translate.translate(text, this.toLang, this.fromLang));
       this.popup = {
         visible: true,
         x: rect.right,
@@ -141,20 +151,31 @@ export class ReaderComponent {
     if (!this.popup.dictAudioUrl) return;
     const a = new Audio(this.popup.dictAudioUrl);
     a.play().catch(() => {});
+    const uid = this.fb.uid() || 'anon';
+    if (this.popup.text) {
+      this.progress.recordEvent(uid, this.popup.text, this.toLang, 'heard').subscribe({ next:()=>{}, error:()=>{} });
+    }
   }
 
-  async markKnown() {
-    if (this.popup.text) {
-      try {
-        await this.known.add(this.popup.text, this.toLang);
-        alert(`Saved as known: "${this.popup.text}" [${this.toLang}]`);
-      } catch (e) {
-        alert('Could not save the word. Check your internet and Firebase/local storage config.');
-        console.error(e);
-      }
+async markKnown() {
+  if (this.popup.text) {
+    try {
+      await this.known.add(this.popup.text, this.toLang);
+
+      const uid = this.fb.uid() || 'anon';
+      this.progress
+        .recordEvent(uid, this.popup.text, this.toLang, 'known')
+        .subscribe({ next: () => {}, error: () => {} });
+
+      alert(`Saved as known: "${this.popup.text}" [${this.toLang}]`);
+    } catch (e: any) {
+      alert('Could not save the word. Check your internet and Firebase rules.');
+      console.error(e);
     }
-    this.hidePopup();
   }
+  this.hidePopup();
+}
+
 
   hidePopup() { this.popup.visible = false; }
 

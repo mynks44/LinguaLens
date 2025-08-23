@@ -1,0 +1,19 @@
+.wrap { padding: 1rem; }
+
+.controls { display: flex; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.card { border: 1px solid #ddd; border-radius: 8px; padding: .75rem 1rem; background: #fff; }
+.card .title { font-weight: 600; margin-bottom: .5rem; }
+
+.lists { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 2rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .4rem .25rem; border-bottom: 1px solid #eee; }
+
+.bar { position: relative; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+.bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: #4caf50; }
