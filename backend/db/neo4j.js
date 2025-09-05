@@ -6,9 +6,13 @@ const pass = process.env.NEO4J_PASSWORD;
 const dbName = process.env.NEO4J_DATABASE || 'neo4j';
 
 if (!uri || !user || !pass) {
-  console.warn('[neo4j] Missing env vars NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD');
+  console.error('[neo4j] Missing credentials');
 }
 
-const driver = neo4j.driver(uri, neo4j.auth.basic(user, pass));
+const driver = neo4j.driver(
+  uri,
+  neo4j.auth.basic(user, pass),
+  {  }
+);
 
 module.exports = { driver, dbName };

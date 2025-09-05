@@ -14,35 +14,39 @@ router.post('/event', async (req, res, next) => {
 
   const session = driver.session();
   try {
-    const result = await session.run(
-      `
-      MERGE (u:User {userId: $userId})
-      MERGE (l:Language {code: $lang})
-      MERGE (w:Word {text: $word, lang: $lang})
-      MERGE (u)-[r:ENCOUNTER]->(w)
-      ON CREATE SET r.timesSeen = 0, r.timesKnown = 0, r.timesHeard = 0, r.confidence = 0.0, r.lastSeen = $ts
+const result = await session.run(`
+  // Ensure nodes
+  MERGE (u:User {userId: $userId})
+  MERGE (l:Language {code: $lang})
+  MERGE (w:Word {text: $word, lang: $lang})
+  MERGE (u)-[r:ENCOUNTER]->(w)
+  ON CREATE SET r.timesSeen = 0, r.timesKnown = 0, r.timesHeard = 0, r.confidence = 0.0, r.lastSeen = $ts
 
-      WITH u, w, r, l, $ts AS ts
-      WITH u, w, r, l, ts, (r.lastSeen IS NULL OR r.lastSeen = 0) AS noPrev
-      WITH u, w, r, l, ts, CASE WHEN noPrev THEN 0 ELSE toInteger( (ts - r.lastSeen) / (1000*60*60*24) ) END AS days
+  // compute full days since lastSeen
+  WITH u, w, r, l, $ts AS ts
+  WITH u, w, r, l, ts, (r.lastSeen IS NULL OR r.lastSeen = 0) AS noPrev
+  WITH u, w, r, l, ts,
+       CASE WHEN noPrev THEN 0 ELSE toInteger( (ts - r.lastSeen) / (1000*60*60*24) ) END AS days
 
-      SET r.confidence =
-        CASE WHEN days <= 0 THEN r.confidence
-             ELSE r.confidence * toFloat(pow(0.995, days))
-        END
+  // decay without pow(): multiply by 0.995^days using reduce()
+  WITH u, w, r, l, ts, days,
+       CASE
+         WHEN days <= 0 THEN r.confidence
+         ELSE r.confidence * reduce(f = 1.0, _ IN range(1, days) | f * 0.995)
+       END AS decayed
 
-      SET r.${'times'+(type.charAt(0).toUpperCase()+type.slice(1))} =
-          coalesce(r.${'times'+(type.charAt(0).toUpperCase()+type.slice(1))},0) + 1
+  SET r.confidence = decayed
 
-      SET r.confidence = CASE WHEN r.confidence IS NULL THEN $delta ELSE r.confidence + $delta END
-      SET r.confidence = CASE WHEN r.confidence > 1.0 THEN 1.0 ELSE r.confidence END
-      SET r.lastSeen = ts
+  // counters & confidence delta
+  SET r.${'times'+(type.charAt(0).toUpperCase()+type.slice(1))} = coalesce(r.${'times'+(type.charAt(0).toUpperCase()+type.slice(1))},0) + 1
+  SET r.confidence = CASE WHEN r.confidence IS NULL THEN $delta ELSE r.confidence + $delta END
+  SET r.confidence = CASE WHEN r.confidence > 1.0 THEN 1.0 ELSE r.confidence END
+  SET r.lastSeen = ts
 
-      RETURN u.userId AS userId, w.text AS word, w.lang AS lang, r.confidence AS confidence,
-             r.timesSeen AS timesSeen, r.timesKnown AS timesKnown, r.timesHeard AS timesHeard, r.lastSeen AS lastSeen
-      `,
-      { userId, word, lang, ts, delta }
-    );
+  RETURN u.userId AS userId, w.text AS word, w.lang AS lang, r.confidence AS confidence,
+         r.timesSeen AS timesSeen, r.timesKnown AS timesKnown, r.timesHeard AS timesHeard, r.lastSeen AS lastSeen
+`, { userId, word, lang, ts, delta });
+
 
     const row = result.records[0]?.toObject() || null;
     res.json(row);
@@ -100,14 +104,42 @@ router.get('/top-words', async (req, res, next) => {
 
   const session = driver.session();
   try {
-    const cypher = `
-      MATCH (u:User {userId:$userId})-[r:ENCOUNTER]->(w:Word)
-      ${lang ? 'WHERE w.lang = $lang' : ''}
-      RETURN w.text AS word, w.lang AS lang, r.confidence AS confidence,
-             r.timesSeen AS timesSeen, r.timesKnown AS timesKnown
-      ORDER BY ${order === 'high' ? 'r.confidence DESC' : 'r.confidence ASC'}
-      LIMIT toInteger($limit)          // <<--- cast to integer in Cypher
-    `;
+const cypher = `
+  MERGE (u:User {userId: $userId})
+  MERGE (w:Word {text: $word, lang: $lang})
+  MERGE (u)-[r:ENCOUNTER]->(w)
+  ON CREATE SET r.timesSeen=0, r.timesKnown=0, r.timesHeard=0, r.confidence=0.0, r.lastSeen=$ts
+
+  // compute full days since lastSeen
+  WITH r, $ts AS ts
+  WITH r, ts,
+       CASE WHEN r.lastSeen IS NULL OR r.lastSeen = 0
+            THEN 0
+            ELSE toInteger( (ts - r.lastSeen) / (1000*60*60*24) )
+       END AS days
+
+  // decay: r.confidence *= 0.995^days  ->  exp(log(0.995) * days)
+  WITH r, ts, days,
+       CASE
+         WHEN days <= 0 THEN r.confidence
+         ELSE coalesce(r.confidence, 0.0) * exp(log(0.995) * toFloat(days))
+       END AS decayed
+
+  SET r.confidence = decayed
+
+  // counters & confidence delta
+  SET r.${counterProp} = coalesce(r.${counterProp}, 0) + 1
+  SET r.confidence = coalesce(r.confidence, 0.0) + $delta
+  SET r.confidence = CASE WHEN r.confidence > 1.0 THEN 1.0 ELSE r.confidence END
+  SET r.lastSeen = ts
+
+  RETURN r.confidence AS confidence,
+         r.timesSeen  AS timesSeen,
+         r.timesKnown AS timesKnown,
+         r.timesHeard AS timesHeard,
+         r.lastSeen   AS lastSeen
+`;
+
 
     const result = await session.run(cypher, { userId, lang, limit: Math.trunc(limit) });
     res.json(result.records.map(rec => rec.toObject()));

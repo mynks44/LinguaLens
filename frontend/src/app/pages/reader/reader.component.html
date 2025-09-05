@@ -1,57 +1,67 @@
-<div class="grid">
-  <section class="left">
-    <label>Source language</label>
-    <select [(ngModel)]="fromLang">
-      <option value="en">English</option>
-      <option value="fr">French</option>
-      <option value="es">Spanish</option>
-      <option value="de">German</option>
-      <option value="hi">Hindi</option>
-    </select>
+<div class="reader-wrap">
+  <div class="toolbar">
+    <button (click)="speakAll()">🔊 Play all</button>
+    <button (click)="pause()">⏸️ Pause</button>
+    <button (click)="resume()">▶️ Resume</button>
+    <button (click)="stop()">⏹️ Stop</button>
+    <span class="lang-tag">{{ toLangToBcp47() }}</span>
+  </div>
 
-    <label>Target language</label>
-    <select [(ngModel)]="toLang">
-      <option value="fr">French</option>
-      <option value="en">English</option>
-      <option value="es">Spanish</option>
-      <option value="de">German</option>
-      <option value="hi">Hindi</option>
-    </select>
+  <div class="columns">
+    <div class="left">
+      <label>Source language</label>
+      <select [(ngModel)]="fromLang">
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="hi">Hindi</option>
+      </select>
 
-    <label>Paste your paragraph</label>
-    <textarea rows="10" [(ngModel)]="sourceText" placeholder="Paste text here..."></textarea>
+      <label>Target language</label>
+      <select [(ngModel)]="toLang">
+        <option value="fr">French</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="hi">Hindi</option>
+      </select>
 
-    <button (click)="doTranslate()">Translate →</button>
-  </section>
+      <label>Paste your paragraph</label>
+      <textarea [(ngModel)]="sourceText" rows="9"></textarea>
 
-  <section class="right">
-    <div class="actions">
-      <!-- Paragraph TTS -->
-      <app-audio-player [text]="tokens.join(' ')" [lang]="toLangToBcp47()"></app-audio-player>
+      <button class="cta" (click)="doTranslate()">Translate →</button>
     </div>
 
-    <div class="target" (click)="clickToken($event)" (mouseup)="mouseUpSelection()">
+    <div class="right"
+         (mouseup)="mouseUpSelection()"
+         (click)="clickToken($event)">
       <ng-container *ngFor="let t of tokens">
-        <span class="tok" [class.word]="t && isWord(t)">{{ t }}</span>
+        <span class="tok" [class.word]="isWord(t)">
+          <span class="w">{{ t }}</span>
+          <button
+            *ngIf="isWord(t)"
+            class="speak-word"
+            type="button"
+            aria-label="Speak word"
+            (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+            (click)="speakWord(t); $event.stopPropagation();">
+            🔊
+          </button>
+        </span>
       </ng-container>
     </div>
-  </section>
-</div>
+  </div>
 
 <app-popup-translation
-  [visible]="popup.visible"
+  *ngIf="popup.visible"
   [x]="popup.x"
   [y]="popup.y"
   [text]="popup.text"
   [translation]="popup.translation"
-
-  [phonetic]="popup.phonetic"
-  [dictAudioUrl]="popup.dictAudioUrl"
-  [definitions]="popup.definitions"
-  [synonyms]="popup.synonyms"
-
-  (speak)="speak(popup.text)"
-  (playPronAudio)="playPronAudio()"
-  (markKnown)="markKnown()"
-  (close)="hidePopup()">
+  (speak)="speakWord(popup.text)"  
+  (close)="hidePopup()"
+  (markKnown)="markKnown()">
 </app-popup-translation>
+
+</div>

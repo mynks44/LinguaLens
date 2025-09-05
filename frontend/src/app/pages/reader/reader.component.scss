@@ -1,7 +1,90 @@
-.grid { display:grid; grid-template-columns: 1fr 1.5fr; gap:16px; }
-.left label { display:block; margin-top:8px; font-weight:600; }
-.left textarea, .left select { width:100%; margin-bottom:8px; }
-.target { border:1px solid #ddd; border-radius:8px; padding:12px; min-height:220px; line-height:1.9; cursor:text; user-select:text; background:#fff; }
-.tok.word { padding:0 2px; cursor:pointer; }
-.tok.word:hover { background:#fff6cc; border-radius:4px; }
-.actions { margin-bottom:8px; display:flex; gap:10px; align-items:center; }
+.reader-wrap { padding: 12px; }
+
+.toolbar {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+  button { padding: 6px 10px; }
+  .lang-tag { margin-left: auto; opacity: .7; }
+}
+
+.columns { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+
+.left {
+  display: grid; gap: 8px;
+  textarea { width: 100%; }
+  .cta { margin-top: 6px; }
+}
+
+.right {
+  min-height: 220px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  line-height: 2.1;
+  cursor: text;
+}
+
+.tok {
+  position: relative;
+  display: inline-block;
+  padding: 0 .15rem;
+  user-select: text;
+}
+.tok.word { border-bottom: 1px dotted rgba(0,0,0,.15); }
+
+.speak-word {
+  position: absolute;
+  top: -1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 0 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+    margin-left: .25rem;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+}
+.tok.word:hover .speak-word {
+  opacity: 1;
+  pointer-events: auto;
+}
+.reader-wrap { position: relative; }
+
+.columns {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+}
+
+.right {
+  line-height: 2.1;
+  cursor: text;
+  user-select: text;
+}
+
+.tok {
+  position: relative;
+  display: inline-block;
+  padding: 0 .05rem;
+}
+
+
+.speak-word {
+  margin-left: .25rem;
+  cursor: pointer;
+  user-select: none;             
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.lang-tag { opacity: .6; margin-left: 8px; }
