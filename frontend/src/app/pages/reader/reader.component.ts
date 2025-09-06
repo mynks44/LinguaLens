@@ -159,10 +159,31 @@ toLangToBcp47() {
     this.tts.speak(joined, this.toLangToBcp47());
   }
 
-  speakWord(word: string) {
-    if (!word) return;
-    this.tts.speak(word, this.toLangToBcp47());
-  }
+
+speakWord(word: string) {
+  if (!word) return;
+  this.tts.speak(word, this.toLangToBcp47());
+}
+
+formatWithSpeakers(text: string, isTranslation = false): string {
+  const words = text.split(/\s+/);
+  return words
+    .map(w => {
+      if (!w.trim()) return '';
+      return `<span class="word-with-speaker">
+                <span class="word">${w}</span>
+                <button class="icon" onclick="window.dispatchEvent(new CustomEvent('speak-word',{detail:'${w}'}))">🔊</button>
+              </span>`;
+    })
+    .join(' ');
+}
+
+ngOnInit() {
+  window.addEventListener('speak-word', ((e: any) => {
+    this.speakWord(e.detail);
+  }) as EventListener);
+}
+
 
   pause() { this.tts.pause(); }
   resume() { this.tss?.resume?.(); this.tts.resume(); }
