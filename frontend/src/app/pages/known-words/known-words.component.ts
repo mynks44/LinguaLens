@@ -1,7 +1,54 @@
+import { Injectable, inject } from '@angular/core';
+import { Firestore, collection, doc, setDoc, getDocs, deleteDoc, writeBatch } from '@angular/fire/firestore';
+import { AuthService } from '../auth/auth.service';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, DatePipe } from '@angular/common';
-import { KnownWord, KnownWordsService } from '../../core/services/known-words.service';
+
+@Injectable({ providedIn: 'root' })
+export class KnownWordsService {
+  private db = inject(Firestore);
+  private auth = inject(AuthService);
+
+  private pathFor(uid: string) { return `users/${uid}/knownWords`; }
+
+  async add(word: string, lang: string) {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not signed in');
+    const id = `${lang}:${word.toLowerCase()}`;
+    await setDoc(doc(this.db, this.pathFor(uid), id), {
+      word, lang, createdAt: Date.now()
+    }, { merge: true });
+  }
+
+  async list({ lang, q }: { lang?: string, q?: string }) {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not signed in');
+    const snap = await getDocs(collection(this.db, this.pathFor(uid)));
+    const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    return items.filter(w =>
+      (!q || (w.word || '').toLowerCase().includes(q.toLowerCase())) &&
+      (!lang || w.lang === lang)
+    );
+  }
+
+  async removeById(id: string) {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not signed in');
+    await deleteDoc(doc(this.db, this.pathFor(uid), id));
+  }
+
+  async clearAll() {
+    const uid = this.auth.uid();
+    if (!uid) throw new Error('Not signed in');
+    const snap = await getDocs(collection(this.db, this.pathFor(uid)));
+    const batch = writeBatch(this.db);
+    snap.docs.forEach(docSnap => {
+      batch.delete(docSnap.ref);
+    });
+    await batch.commit();
+  }
+}
 
 @Component({
   selector: 'app-known-words',
@@ -14,8 +61,8 @@ export class KnownWordsComponent {
   q = '';
   filterLang = '';
 
-  words: KnownWord[] = [];
-  filtered: KnownWord[] = [];
+  words: any[] = [];
+  filtered: any[] = [];
   langs: string[] = [];
   statEntries: [string, number][] = [];
 
@@ -32,7 +79,6 @@ export class KnownWordsComponent {
     });
 
     this.words = items;
-
     this.langs = Array.from(new Set(items.map(w => w.lang))).sort();
 
     const stats = items.reduce<Record<string, number>>((acc, w) => {
@@ -47,14 +93,14 @@ export class KnownWordsComponent {
   applyFilters() {
     const qlc = this.q.trim().toLowerCase();
     this.filtered = this.words.filter(w =>
-      (!qlc || (w.text || '').toLowerCase().includes(qlc)) &&
+      (!qlc || (w.word || '').toLowerCase().includes(qlc)) &&
       (!this.filterLang || w.lang === this.filterLang)
     );
   }
 
-  async remove(w: KnownWord) {
+  async remove(w: any) {
     if (!w.id) return;
-    if (confirm(`Remove "${w.text}" [${w.lang}]?`)) {
+    if (confirm(`Remove "${w.word}" [${w.lang}]?`)) {
       await this.known.removeById(w.id);
       await this.refresh();
     }

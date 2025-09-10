@@ -1,0 +1,37 @@
+<div class="auth-wrap">
+  <h2>Welcome to Language Coach</h2>
+  <p>Please sign in to save your progress, or continue as a guest.</p>
+
+  <div class="card">
+    <h3 *ngIf="mode==='login'">Log in</h3>
+    <h3 *ngIf="mode==='signup'">Create account</h3>
+
+    <form (ngSubmit)="doEmail()">
+      <div *ngIf="mode==='signup'">
+        <label>Display name</label>
+        <input [(ngModel)]="displayName" name="displayName" />
+      </div>
+
+      <label>Email</label>
+      <input [(ngModel)]="email" name="email" type="email" required />
+
+      <label>Password</label>
+      <input [(ngModel)]="password" name="password" type="password" required />
+
+      <button class="primary" [disabled]="loading">
+        {{ mode==='login' ? 'Log in' : 'Sign up' }}
+      </button>
+    </form>
+
+    <button class="google" (click)="doGoogle()" [disabled]="loading">Continue with Google</button>
+    <button (click)="doGuest()" [disabled]="loading">Continue as guest</button>
+
+    <div class="switch">
+      <a (click)="toggleMode()">
+        {{ mode==='login' ? 'Create an account' : 'Already have an account? Log in' }}
+      </a>
+    </div>
+
+    <div class="error" *ngIf="error">{{ error }}</div>
+  </div>
+</div>
