@@ -1,4 +1,22 @@
-<app-toolbar></app-toolbar>
-<main style="max-width:1100px;margin:16px auto;padding:0 12px;">
-  <router-outlet></router-outlet>
-</main>
+<header class="topbar">
+  <nav>
+    <a routerLink="/reader">Reader</a>
+    <a routerLink="/known-words">Known Words</a>
+    <a routerLink="/stats">Stats</a>
+  </nav>
+
+  <div class="user">
+    <span>
+      {{ (auth.user$ | async)?.displayName || (auth.user$ | async)?.email || 'Guest' }}
+    </span>
+
+    <button *ngIf="auth.user$ | async as u; else showLogin"
+            (click)="logout()">Logout</button>
+
+    <ng-template #showLogin>
+      <a routerLink="/auth">Login</a>
+    </ng-template>
+  </div>
+</header>
+
+<router-outlet></router-outlet>

@@ -1,60 +1,117 @@
 import { Injectable, inject } from '@angular/core';
+import { BehaviorSubject, Observable } from 'rxjs';
 import {
-  Auth, authState,
+  Auth,
+  User,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInAnonymously, signOut,
-  GoogleAuthProvider, signInWithPopup,
-  updateProfile, User
-} from '@angular/fire/auth';
-import { Firestore, doc, setDoc } from '@angular/fire/firestore';
-import { Observable } from 'rxjs';
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signInAnonymously,
+  signOut,
+  onAuthStateChanged,
+  getRedirectResult,
+  AuthError
+} from 'firebase/auth';
+import { FirebaseService } from './firebase.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private auth = inject(Auth);
-  private db = inject(Firestore);
+  private fb = inject(FirebaseService);
+  private auth: Auth = this.fb.auth;
 
-  readonly user$: Observable<User | null> = authState(this.auth);
+  private _user$ = new BehaviorSubject<User | null>(this.auth.currentUser ?? null);
 
-  uid(): string | null { return this.auth.currentUser?.uid ?? null; }
+  user$: Observable<User | null> = this._user$.asObservable();
 
-  async signUpEmail(email: string, password: string, displayName?: string) {
-    const cred = await createUserWithEmailAndPassword(this.auth, email, password);
-    if (displayName) await updateProfile(cred.user, { displayName });
-    await this.ensureUserDoc(cred.user);
-    return cred.user;
+  constructor() {
+    onAuthStateChanged(this.auth, (u) => {
+      this._user$.next(u ?? null);
+    });
+
+    this.handleRedirectResult();
   }
 
-  async signInEmail(email: string, password: string) {
-    const cred = await signInWithEmailAndPassword(this.auth, email, password);
-    await this.ensureUserDoc(cred.user);
-    return cred.user;
+  get currentUser(): User | null {
+    return this.auth.currentUser ?? null;
   }
 
-  async signInGoogle() {
-    const provider = new GoogleAuthProvider();
-    const cred = await signInWithPopup(this.auth, provider);
-    await this.ensureUserDoc(cred.user);
-    return cred.user;
+  displayName(user: User | null): string {
+    if (!user) return 'Guest';
+    if (user.isAnonymous) return 'Guest';
+    return user.displayName || user.email || 'User';
   }
 
-  async signInGuest() {
-    const cred = await signInAnonymously(this.auth);
-    await this.ensureUserDoc(cred.user);
-    return cred.user;
+  async signInEmail(email: string, password: string): Promise<User> {
+    try {
+      const cred = await signInWithEmailAndPassword(this.auth, email.trim(), password);
+      return cred.user;
+    } catch (error) {
+      throw this.handleAuthError(error as AuthError);
+    }
   }
 
-  async logout() { await signOut(this.auth); }
+  async signUpEmail(email: string, password: string, displayName?: string): Promise<User> {
+    try {
+      const cred = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+      if (displayName) {
+        await updateProfile(cred.user, { displayName: displayName.trim() });
+      }
+      return cred.user;
+    } catch (error) {
+      throw this.handleAuthError(error as AuthError);
+    }
+  }
 
-  private async ensureUserDoc(user: User) {
-    const ref = doc(this.db, `users/${user.uid}`);
-    await setDoc(ref, {
-      uid: user.uid,
-      email: user.email ?? null,
-      displayName: user.displayName ?? null,
-      isAnonymous: user.isAnonymous ?? false,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+  async signInGoogle(): Promise<User> {
+    try {
+      const cred = await signInWithPopup(this.auth, new GoogleAuthProvider());
+      return cred.user;
+    } catch (error) {
+      throw this.handleAuthError(error as AuthError);
+    }
+  }
+
+  async signInGuest(): Promise<User> {
+    try {
+      const cred = await signInAnonymously(this.auth);
+      return cred.user;
+    } catch (error) {
+      throw this.handleAuthError(error as AuthError);
+    }
+  }
+
+  async signOut(): Promise<void> {
+    try {
+      await signOut(this.auth);
+    } catch (error) {
+      throw this.handleAuthError(error as AuthError);
+    }
+  }
+
+  async logout(): Promise<void> {
+    await this.signOut();
+  }
+
+  private handleRedirectResult() {
+    getRedirectResult(this.auth).then((result) => {
+      if (result) {
+        const user = result.user;
+        this._user$.next(user);
+      }
+    }).catch((error) => {
+      console.error('Redirect result error: ', error);
+    });
+  }
+
+  private handleAuthError(error: AuthError): string {
+    if (error.code === 'auth/wrong-password') {
+      return 'Incorrect password. Please try again.';
+    } else if (error.code === 'auth/user-not-found') {
+      return 'No user found with this email.';
+    } else {
+      return 'An error occurred. Please try again later.';
+    }
   }
 }

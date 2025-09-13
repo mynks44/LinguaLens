@@ -1,13 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgIf } from '@angular/common';
+import { NgIf, AsyncPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [FormsModule, NgIf],
+  imports: [FormsModule, NgIf, AsyncPipe],
   templateUrl: './auth.component.html',
   styleUrls: ['./auth.component.scss']
 })
@@ -28,11 +28,15 @@ export class AuthComponent {
   async doEmail() {
     this.loading = true; this.error = null;
     try {
-      if (this.mode === 'login') await this.auth.signInEmail(this.email, this.password);
-      else await this.auth.signUpEmail(this.email, this.password, this.displayName);
+      if (this.mode === 'login') {
+        await this.auth.signInEmail(this.email, this.password);
+      } else {
+        await this.auth.signUpEmail(this.email, this.password, this.displayName);
+      }
       this.router.navigateByUrl('/reader');
-    } catch (e: any) { this.error = e?.message || 'Failed'; }
-    finally { this.loading = false; }
+    } catch (e: any) {
+      this.error = e?.message || 'Failed';
+    } finally { this.loading = false; }
   }
 
   async doGoogle() {
@@ -40,8 +44,9 @@ export class AuthComponent {
     try {
       await this.auth.signInGoogle();
       this.router.navigateByUrl('/reader');
-    } catch (e: any) { this.error = e?.message || 'Failed'; }
-    finally { this.loading = false; }
+    } catch (e: any) {
+      this.error = e?.message || 'Failed';
+    } finally { this.loading = false; }
   }
 
   async doGuest() {
@@ -49,7 +54,8 @@ export class AuthComponent {
     try {
       await this.auth.signInGuest();
       this.router.navigateByUrl('/reader');
-    } catch (e: any) { this.error = e?.message || 'Failed'; }
-    finally { this.loading = false; }
+    } catch (e: any) {
+      this.error = e?.message || 'Failed';
+    } finally { this.loading = false; }
   }
 }
