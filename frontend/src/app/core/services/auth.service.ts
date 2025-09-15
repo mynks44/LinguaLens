@@ -15,9 +15,11 @@ import {
   AuthError
 } from 'firebase/auth';
 import { FirebaseService } from './firebase.service';
+import { Router } from '@angular/router';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private router = inject(Router);
   private fb = inject(FirebaseService);
   private auth: Auth = this.fb.auth;
 
@@ -92,6 +94,7 @@ export class AuthService {
 
   async logout(): Promise<void> {
     await this.signOut();
+     await this.router.navigateByUrl('/auth');
   }
 
   private handleRedirectResult() {
