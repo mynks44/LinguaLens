@@ -1,22 +1,2 @@
-<header class="topbar">
-  <nav>
-    <a routerLink="/reader">Reader</a>
-    <a routerLink="/known-words">Known Words</a>
-    <a routerLink="/stats">Stats</a>
-  </nav>
-
-  <div class="user">
-    <span>
-      {{ (auth.user$ | async)?.displayName || (auth.user$ | async)?.email || 'Guest' }}
-    </span>
-
-    <button *ngIf="auth.user$ | async as u; else showLogin"
-            (click)="logout()">Logout</button>
-
-    <ng-template #showLogin>
-      <a routerLink="/auth">Login</a>
-    </ng-template>
-  </div>
-</header>
-
+<app-toolbar></app-toolbar>
 <router-outlet></router-outlet>

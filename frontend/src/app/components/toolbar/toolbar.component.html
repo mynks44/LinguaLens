@@ -1,7 +1,20 @@
-<div style="background:#3f51b5;color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center">
-  <b>Language Coach</b>
-  <span style="flex:1"></span>
-  <a routerLink="/reader" style="color:#fff;text-decoration:none;">Reader</a>
-  <a routerLink="/known-words" style="color:#fff;text-decoration:none;">Known Words</a>
-  <a routerLink="/stats">Stats</a>
-</div>
+<header *ngIf="showToolbar" class="topbar">
+  <nav>
+    <a routerLink="/reader">Reader</a>
+    <a routerLink="/known-words">Known Words</a>
+    <a routerLink="/stats">Stats</a>
+  </nav>
+
+  <div class="user">
+    <span>
+      {{ (auth.user$ | async)?.displayName || (auth.user$ | async)?.email || 'Guest' }}
+    </span>
+
+    <button *ngIf="auth.user$ | async as u; else showLogin"
+            (click)="logout()">Logout</button>
+
+    <ng-template #showLogin>
+      <a routerLink="/auth">Login</a>
+    </ng-template>
+  </div>
+</header>

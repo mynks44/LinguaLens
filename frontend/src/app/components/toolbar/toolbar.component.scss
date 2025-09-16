@@ -1,0 +1,34 @@
+.topbar {
+  background: #2c3e50;
+  color: white;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  nav a {
+    margin-right: 15px;
+    color: white;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .user {
+    display: flex;
+    align-items: center;
+
+    span {
+      margin-right: 10px;
+    }
+
+    button, a {
+      background: #fff;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  }
+}
