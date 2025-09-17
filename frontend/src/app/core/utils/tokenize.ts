@@ -1,8 +1,23 @@
-export function tokenizePreserve(text: string): string[] {
-  return (text || '')
-    .split(/(\s+|[.,!?;:"'()\-])/)
-    .filter(t => t !== '');
+export type Token = { text: string; kind: 'word' | 'space' | 'punct' };
+
+/**
+ * Splits text into tokens and PRESERVES real spaces as tokens.
+ * Example: "Je joue avec un chien." =>
+ *  [{word:"Je"}, {space:" "}, {word:"joue"}, ... , {punct:"."}]
+ */
+export function tokenizeToArray(text: string): Token[] {
+  const tokens: Token[] = [];
+  const re = /(\w+|[^\w\s]|\s+)/g;
+  const matches = text.matchAll(re);
+  for (const m of matches) {
+    const tok = m[0];
+    if (/^\s+$/.test(tok)) tokens.push({ text: tok, kind: 'space' });
+    else if (/^\w+$/.test(tok)) tokens.push({ text: tok, kind: 'word' });
+    else tokens.push({ text: tok, kind: 'punct' });
+  }
+  return tokens;
 }
-export function isWord(tok: string): boolean {
-  return /\p{L}/u.test(tok);
+
+export function isWordToken(t: Token | string): boolean {
+  return typeof t === 'string' ? /^\w+$/.test(t) : t.kind === 'word';
 }

@@ -91,12 +91,21 @@ router.get('/overview', async (req, res, next) => {
 });
 
 // ----- GET /progress/top-words -----------------------------------------------
+// ----- GET /progress/top-words -----------------------------------------------
+// /progress/top-words?userId=...&lang=fr&metric=confidence|seen|known|heard&order=high|low&limit=10
 router.get('/top-words', async (req, res, next) => {
-  const userId = req.query.userId;
-  const lang = req.query.lang || null;
+  const userId = String(req.query.userId || '');
+  const lang   = req.query.lang ? String(req.query.lang) : null;
 
-  // sanitize order & limit
-  const order = (req.query.order || 'low').toString().toLowerCase() === 'high' ? 'high' : 'low';
+  // sanitize metric and order
+  const metricParam = String(req.query.metric || 'confidence').toLowerCase();
+  const allowedMetrics = new Set(['confidence', 'seen', 'known', 'heard']);
+  const metric = allowedMetrics.has(metricParam) ? metricParam : 'confidence';
+
+  const orderParam = String(req.query.order || 'high').toLowerCase();
+  const orderDir = orderParam === 'low' ? 'ASC' : 'DESC';
+
+  // sanitize limit
   const limitParsed = Number.parseInt(String(req.query.limit ?? '20'), 10);
   const limit = Number.isFinite(limitParsed) ? Math.max(1, Math.min(limitParsed, 100)) : 20;
 
@@ -104,51 +113,47 @@ router.get('/top-words', async (req, res, next) => {
 
   const session = driver.session();
   try {
-const cypher = `
-  MERGE (u:User {userId: $userId})
-  MERGE (w:Word {text: $word, lang: $lang})
-  MERGE (u)-[r:ENCOUNTER]->(w)
-  ON CREATE SET r.timesSeen=0, r.timesKnown=0, r.timesHeard=0, r.confidence=0.0, r.lastSeen=$ts
+    const cypher = `
+      MATCH (u:User {userId:$userId})-[r:ENCOUNTER]->(w:Word)
+      ${lang ? 'WHERE w.lang = $lang' : ''}
+      WITH w,
+           COALESCE(r.confidence, 0.0) AS confidence,
+           COALESCE(r.timesSeen,  0)   AS seen,
+           COALESCE(r.timesKnown, 0)   AS known,
+           COALESCE(r.timesHeard, 0)   AS heard,
+           COALESCE(r.lastSeen,  0)    AS lastSeen,
+           $metric AS metricName
+      // choose the sort metric based on requested metricName
+      WITH w, confidence, seen, known, heard, lastSeen,
+           CASE metricName
+             WHEN 'seen'  THEN seen
+             WHEN 'known' THEN known
+             WHEN 'heard' THEN heard
+             ELSE confidence
+           END AS metric
+      RETURN
+        w.text  AS text,
+        w.lang  AS lang,
+        confidence,
+        seen     AS timesSeen,
+        known    AS timesKnown,
+        heard    AS timesHeard,
+        lastSeen
+      ORDER BY metric ${orderDir}, text ASC
+      LIMIT $limit
+    `;
 
-  // compute full days since lastSeen
-  WITH r, $ts AS ts
-  WITH r, ts,
-       CASE WHEN r.lastSeen IS NULL OR r.lastSeen = 0
-            THEN 0
-            ELSE toInteger( (ts - r.lastSeen) / (1000*60*60*24) )
-       END AS days
-
-  // decay: r.confidence *= 0.995^days  ->  exp(log(0.995) * days)
-  WITH r, ts, days,
-       CASE
-         WHEN days <= 0 THEN r.confidence
-         ELSE coalesce(r.confidence, 0.0) * exp(log(0.995) * toFloat(days))
-       END AS decayed
-
-  SET r.confidence = decayed
-
-  // counters & confidence delta
-  SET r.${counterProp} = coalesce(r.${counterProp}, 0) + 1
-  SET r.confidence = coalesce(r.confidence, 0.0) + $delta
-  SET r.confidence = CASE WHEN r.confidence > 1.0 THEN 1.0 ELSE r.confidence END
-  SET r.lastSeen = ts
-
-  RETURN r.confidence AS confidence,
-         r.timesSeen  AS timesSeen,
-         r.timesKnown AS timesKnown,
-         r.timesHeard AS timesHeard,
-         r.lastSeen   AS lastSeen
-`;
-
-
-    const result = await session.run(cypher, { userId, lang, limit: Math.trunc(limit) });
-    res.json(result.records.map(rec => rec.toObject()));
+    const result = await session.run(cypher, { userId, lang, limit, metric });
+    const data = result.records.map(r => r.toObject());
+    res.json({ data });
   } catch (e) {
+    console.error('top-words error:', e);
     next(e);
   } finally {
     await session.close();
   }
 });
+
 
 
 module.exports = router;

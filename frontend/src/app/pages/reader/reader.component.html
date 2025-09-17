@@ -33,22 +33,26 @@
       <button class="cta" (click)="doTranslate()">Translate →</button>
     </div>
 
-    <div class="right"
-         (mouseup)="mouseUpSelection()"
-         (click)="clickToken($event)">
+    <div
+      class="right"
+      (mouseup)="mouseUpSelection()"
+      (click)="clickToken($event)"
+    >
       <ng-container *ngFor="let t of tokens">
-        <span class="tok" [class.word]="isWord(t)">
-          <span class="w">{{ t }}</span>
+        <span *ngIf="isWord(t); else plainText" class="tok word">
+          <span class="w">{{ t.text }}</span>
           <button
-            *ngIf="isWord(t)"
             class="speak-word"
             type="button"
             aria-label="Speak word"
             (mousedown)="$event.preventDefault(); $event.stopPropagation()"
-            (click)="speakWord(t); $event.stopPropagation();">
+            (click)="speakWord(t.text); $event.stopPropagation();"
+          >
             🔊
           </button>
         </span>
+
+        <ng-template #plainText>{{ t.text }}</ng-template>
       </ng-container>
     </div>
   </div>
@@ -59,8 +63,9 @@
     [y]="popup.y"
     [text]="popup.text"
     [translation]="popup.translation"
-    (speak)="speakWord(popup.text)"  
+    (speak)="speakWord(popup.text)"
     (close)="hidePopup()"
-    (markKnown)="markKnown()">
+    (markKnown)="markKnown()"
+  >
   </app-popup-translation>
 </div>
