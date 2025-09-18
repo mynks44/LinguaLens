@@ -5,6 +5,21 @@
   (click)="$event.stopPropagation()"
 >
   <div class="card">
+    <div class="mini-gloss" *ngIf="perWord?.length">
+      <button
+        class="chip"
+        type="button"
+        *ngFor="let g of perWord"
+        (click)="speakWord.emit(g.src)"
+        [title]="g.src + ' → ' + g.dst"
+      >
+        <b class="src">{{ g.src }}</b>
+        <span class="sep">—</span>
+        <span class="dst">{{ g.dst }}</span>
+        <span aria-hidden="true" class="icon">🔊</span>
+      </button>
+    </div>
+
     <div class="term">{{ text }}</div>
 
     <div class="translation" *ngIf="translation">

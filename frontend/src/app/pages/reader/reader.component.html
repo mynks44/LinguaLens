@@ -63,7 +63,9 @@
     [y]="popup.y"
     [text]="popup.text"
     [translation]="popup.translation"
+    [perWord]="popup.perWord || []"
     (speak)="speakWord(popup.text)"
+    (speakWord)="speakWord($event)"
     (close)="hidePopup()"
     (markKnown)="markKnown()"
   >

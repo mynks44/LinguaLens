@@ -1,10 +1,6 @@
 export type Token = { text: string; kind: 'word' | 'space' | 'punct' };
 
-/**
- * Splits text into tokens and PRESERVES real spaces as tokens.
- * Example: "Je joue avec un chien." =>
- *  [{word:"Je"}, {space:" "}, {word:"joue"}, ... , {punct:"."}]
- */
+
 export function tokenizeToArray(text: string): Token[] {
   const tokens: Token[] = [];
   const re = /(\w+|[^\w\s]|\s+)/g;

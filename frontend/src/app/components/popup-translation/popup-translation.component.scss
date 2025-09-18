@@ -3,6 +3,7 @@
   z-index: 9999;
   pointer-events: auto;
 }
+
 .card {
   min-width: 260px;
   max-width: 380px;
@@ -21,24 +22,61 @@
 //   padding: 10px 12px;
 //   box-shadow: 0 8px 18px rgba(0,0,0,.12);
 // }
+
 .row {
   display: flex;
   align-items: center;
 }
+
 .term {
   font-weight: 700;
   font-size: 16px;
   margin-bottom: 6px;
 }
+
 .close {
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 14px;
 }
+
 .translation {
   margin: 8px 0 6px;
 }
+
 .actions {
-  display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-gloss {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:hover {
+  background: #eef2f7;
+}
+
+.chip .icon {
+  margin-left: 2px;
 }
