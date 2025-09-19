@@ -2,6 +2,7 @@ import { Component, HostListener, ElementRef, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgStyle } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
+import { translateLongText, translateMany } from '../../core/services/translate-batch';
 
 import { TranslateService } from '../../core/services/translate.service';
 import { TtsService } from '../../core/services/tts.service';
@@ -18,10 +19,10 @@ type PopupState = {
   y: number;
   text: string;
   translation: string;
-  perWord?: { src: string; dst: string }[];   
+  perWord?: { src: string; dst: string }[];
 };
 
-const WORD_RE = /[\p{L}\p{M}\p{N}’'’-]+/gu; 
+const WORD_RE = /[\p{L}\p{M}\p{N}’'’-]+/gu; // letters/marks/numbers/apostrophes/hyphens
 function extractWordsOrdered(s: string): string[] {
   return Array.from(s.matchAll(WORD_RE)).map(m => m[0]);
 }
@@ -45,18 +46,18 @@ export class ReaderComponent {
   fromLang = 'en';
   toLang   = 'fr';
 
-  tokens: Token[] = []; 
+  tokens: Token[] = [];
   popup: PopupState = {
     visible: false,
     x: 0,
     y: 0,
     text: '',
     translation: '',
-    perWord: []     
+    perWord: []
   };
 
   private selectionTimer: any = null;
-  private wordCache = new Map<string, string>();
+  private wordCache = new Map<string, string>(); 
   tss: any;
 
   constructor(
@@ -68,7 +69,6 @@ export class ReaderComponent {
     private elRef: ElementRef
   ) {}
 
-  // used in template
   isWord(t: Token) { return t.kind === 'word'; }
 
   private sanitizeText(s: string): string {
@@ -91,10 +91,12 @@ export class ReaderComponent {
 
   async doTranslate() {
     try {
-      const res = await firstValueFrom(
-        this.translate.translate(this.sourceText, this.fromLang, this.toLang)
+      const translatedText = await translateLongText(
+        this.translate,
+        this.sourceText,
+        this.fromLang,
+        this.toLang
       );
-      const translatedText = res?.translatedText || '';
       this.tokens = tokenizeToArray(translatedText);
       this.hidePopup();
 
@@ -118,49 +120,20 @@ export class ReaderComponent {
     if (!word || !isWordToken(word)) return;
 
     try {
-      const back = await firstValueFrom(
-        this.translate.translate(word, this.toLang, this.fromLang)
-      );
+      const backText = await translateLongText(this.translate, word, this.toLang, this.fromLang);
 
       this.popup = {
         visible: true,
         x: ev.clientX,
         y: ev.clientY,
         text: this.sanitizeText(word),
-        translation: this.sanitizeText(back?.translatedText || ''),
-        perWord: [{ src: word, dst: this.sanitizeText(back?.translatedText || '') }]
+        translation: this.sanitizeText(backText),
+        perWord: [{ src: word, dst: this.sanitizeText(backText) }]
       };
     } catch (e) {
       alert('Lookup failed. Please try again.');
       console.error(e);
     }
-  }
-
-  private async translateWordsIndividually(
-    wordsOrdered: string[],
-    fromLang: string,  
-    toLang: string,
-    max = 12
-  ): Promise<{ src: string; dst: string }[]> {
-    const limited = wordsOrdered.slice(0, max);
-    const uniques = uniqPreserveFirstLower(limited);
-    const results = new Map<string, string>(); 
-
-    const jobs = uniques.map(async (w) => {
-      const key = `${toLang}->${fromLang}:${w.toLowerCase()}`;
-      if (this.wordCache.has(key)) {
-        results.set(w.toLowerCase(), this.wordCache.get(key)!);
-        return;
-      }
-      const r = await firstValueFrom(this.translate.translate(w, toLang, fromLang));
-      const dst = (r?.translatedText || '').trim();
-      results.set(w.toLowerCase(), dst);
-      this.wordCache.set(key, dst);
-    });
-
-    await Promise.allSettled(jobs);
-
-    return limited.map((w) => ({ src: w, dst: results.get(w.toLowerCase()) || '' }));
   }
 
   async mouseUpSelection() {
@@ -185,21 +158,46 @@ export class ReaderComponent {
       const anchorY = Math.min(Math.max(rect.top, 8), window.innerHeight - 220);
 
       try {
-        const sentenceRes = await firstValueFrom(
-          this.translate.translate(text, this.toLang, this.fromLang)
-        );
+        const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
 
         const words = extractWordsOrdered(text);
-        const perWord = words.length > 1
-          ? await this.translateWordsIndividually(words, this.fromLang, this.toLang, 12)
-          : [{ src: text, dst: (sentenceRes?.translatedText || '').trim() }];
+
+        let perWord: { src: string; dst: string }[];
+        if (words.length > 1) {
+          const uniques = uniqPreserveFirstLower(words);
+
+          const misses: string[] = [];
+          const got = new Map<string, string>();
+          for (const w of uniques) {
+            const key = `${this.toLang}->${this.fromLang}:${w.toLowerCase()}`;
+            if (this.wordCache.has(key)) {
+              got.set(w.toLowerCase(), this.wordCache.get(key)!);
+            } else {
+              misses.push(w);
+            }
+          }
+
+          if (misses.length) {
+            const translated = await translateMany(this.translate, misses, this.toLang, this.fromLang);
+            misses.forEach((w, i) => {
+              const key = `${this.toLang}->${this.fromLang}:${w.toLowerCase()}`;
+              const val = (translated[i] || '').trim();
+              this.wordCache.set(key, val);
+              got.set(w.toLowerCase(), val);
+            });
+          }
+
+          perWord = words.map(w => ({ src: w, dst: got.get(w.toLowerCase()) || '' }));
+        } else {
+          perWord = [{ src: text, dst: sentenceTr }];
+        }
 
         this.popup = {
           visible: true,
           x: anchorX,
           y: anchorY,
           text,
-          translation: this.sanitizeText(sentenceRes?.translatedText || ''),
+          translation: this.sanitizeText(sentenceTr || ''),
           perWord
         };
 
