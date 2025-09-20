@@ -6,28 +6,23 @@ const morgan = require('morgan');
 const compression = require('compression');
 
 const translateRoutes = require('./routes/translate');
-const generatorRoutes = require('./routes/generator');
-const progressRoutes  = require('./routes/progress');
+const generatorRoutes  = require('./routes/generator');
+const progressRoutes   = require('./routes/progress');
 
 const app = express();
 
 app.set('trust proxy', 1);
-app.disable('etag'); // Disable 304 caching
-app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store'); // Force fresh body
-  next();
-});
+app.disable('etag');
+app.use((req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
 app.use(helmet());
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '1mb' }));
 
-// CORS: allowlist without trailing slashes
+// CORS allowlist
 const allowed = (process.env.CORS_ORIGINS || 'http://localhost:4200')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+  .split(',').map(s => s.trim()).filter(Boolean);
 
 app.use(cors({
   origin(origin, cb) {
@@ -38,18 +33,26 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ ok: true, time: new Date().toISOString() });
-});
+// Health
+app.get(['/health', '/api/health'], (req, res) =>
+  res.status(200).json({ ok: true, time: new Date().toISOString() })
+);
 
-// Route mounting
+// ---- Route mounting (support both plain and /api/* prefixes) ----
 app.use('/translate', translateRoutes);
-app.use('/generator', generatorRoutes);
-app.use('/progress', progressRoutes);
+app.use('/api/translate', translateRoutes);
 
-// 404 handler
-app.use((req, res) => res.status(404).json({ error: 'Not found', path: req.originalUrl }));
+app.use('/generator', generatorRoutes);
+app.use('/api/generator', generatorRoutes);
+
+app.use('/progress', progressRoutes);
+app.use('/api/progress', progressRoutes);
+// -----------------------------------------------------------------
+
+// 404
+app.use((req, res) =>
+  res.status(404).json({ error: 'Not found', path: req.originalUrl })
+);
 
 // Error handler
 app.use((err, req, res, next) => {

@@ -28,6 +28,7 @@
 }
 
 .right {
+  position: relative;
   min-height: 220px;
   padding: 12px;
   border: 1px solid #ddd;
@@ -45,8 +46,9 @@
 }
 
 .tok.word {
-  border-bottom: 1px dotted rgba(0,0,0,.15);
+  border-bottom: 1px dotted rgba(0, 0, 0, .15);
 }
+
 
 .speak-word {
   position: absolute;
@@ -74,12 +76,48 @@
   pointer-events: auto;
 }
 
-.lang-tag {
-  opacity: .6;
-  margin-left: 8px;
-}
+.lang-tag { opacity: .6; margin-left: 8px; }
 
 .mini-gloss {
-  max-height: 180px;   
+  max-height: 180px;
   overflow-y: auto;
 }
+
+.balloon {
+  position: fixed; 
+  transform: translate(-50%, -100%); 
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.15;
+  padding: 6px 8px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .22);
+  z-index: 9998;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.balloon .balloon-text {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.balloon .balloon-icon { cursor: pointer; }
+
+.balloon .arrow {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #111; 
+}
+
+.balloon:hover { background: #000; }

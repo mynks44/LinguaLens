@@ -1,7 +1,6 @@
 import { Component, HostListener, ElementRef, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgStyle } from '@angular/common';
-import { firstValueFrom } from 'rxjs';
 import { translateLongText, translateMany } from '../../core/services/translate-batch';
 
 import { TranslateService } from '../../core/services/translate.service';
@@ -17,12 +16,13 @@ type PopupState = {
   visible: boolean;
   x: number;
   y: number;
-  text: string;
-  translation: string;
-  perWord?: { src: string; dst: string }[];
+  text: string;        
+  translation: string; 
 };
 
-const WORD_RE = /[\p{L}\p{M}\p{N}’'’-]+/gu; // letters/marks/numbers/apostrophes/hyphens
+type Balloon = { src: string; dst: string; x: number; y: number };
+
+const WORD_RE = /[\p{L}\p{M}\p{N}’'’-]+/gu; 
 function extractWordsOrdered(s: string): string[] {
   return Array.from(s.matchAll(WORD_RE)).map(m => m[0]);
 }
@@ -47,14 +47,10 @@ export class ReaderComponent {
   toLang   = 'fr';
 
   tokens: Token[] = [];
-  popup: PopupState = {
-    visible: false,
-    x: 0,
-    y: 0,
-    text: '',
-    translation: '',
-    perWord: []
-  };
+
+  popup: PopupState = { visible: false, x: 0, y: 0, text: '', translation: '' };
+
+  balloons: Balloon[] = [];
 
   private selectionTimer: any = null;
   private wordCache = new Map<string, string>(); 
@@ -69,6 +65,7 @@ export class ReaderComponent {
     private elRef: ElementRef
   ) {}
 
+
   isWord(t: Token) { return t.kind === 'word'; }
 
   private sanitizeText(s: string): string {
@@ -81,24 +78,52 @@ export class ReaderComponent {
   }
 
   toLangToBcp47() {
-    const m: Record<string, string> = {
-      en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN'
-    };
+    const m: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
     return m[this.toLang] || this.toLang;
+  }
+  fromLangToBcp47() {
+    const m: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
+    return m[this.fromLang] || this.fromLang;
   }
 
   hidePopup() { this.popup.visible = false; }
+  clearBalloons() { this.balloons = []; }
+
+  private handleTranslateError(e: any, context: string) {
+    const body = e?.error || e;
+    const status =
+      body?.providerStatus ??
+      e?.status ??
+      body?.status ??
+      0;
+
+    const message =
+      body?.detail ??
+      body?.error?.detail ??
+      e?.message ??
+      '';
+
+    const isQuota =
+      status === 429 ||
+      (typeof message === 'string' && /quota|rate.?limit|too\s*many\s*requests/i.test(message));
+
+    if (isQuota) {
+      alert('Free translation quota exceeded. Please try again later or configure a translation key.');
+    } else {
+      alert('Translate failed. Please try again.');
+    }
+
+
+    console.error(`[Translate failed @ ${context}]`, { status, message, raw: e });
+  }
+
 
   async doTranslate() {
     try {
-      const translatedText = await translateLongText(
-        this.translate,
-        this.sourceText,
-        this.fromLang,
-        this.toLang
-      );
+      const translatedText = await translateLongText(this.translate, this.sourceText, this.fromLang, this.toLang);
       this.tokens = tokenizeToArray(translatedText);
       this.hidePopup();
+      this.clearBalloons();
 
       const uid = this.fb.uid() || 'anon';
       const words = Array.from(new Set(this.tokens.filter(t => this.isWord(t)).map(t => t.text)));
@@ -106,14 +131,13 @@ export class ReaderComponent {
         this.progress.recordEvent(uid, w, this.toLang, 'seen').subscribe({ next: () => {}, error: () => {} });
       }
     } catch (e) {
-      alert('Translate failed. Please try again.');
-      console.error(e);
+      this.handleTranslateError(e, 'doTranslate');
     }
   }
 
   async clickToken(ev: MouseEvent) {
     const target = ev.target as HTMLElement;
-    const tok = target.closest('.tok') as HTMLElement | null;
+    const tok = target.closest('.tok.word') as HTMLElement | null;
     if (!tok) return;
 
     const word = (tok.querySelector('.w')?.textContent || '').trim();
@@ -122,20 +146,23 @@ export class ReaderComponent {
     try {
       const backText = await translateLongText(this.translate, word, this.toLang, this.fromLang);
 
+      const rect = tok.getBoundingClientRect();
+      const x = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
+      const y = Math.max(rect.top - 8, 8); 
+
+      this.clearBalloons(); 
       this.popup = {
         visible: true,
-        x: ev.clientX,
-        y: ev.clientY,
+        x, y,
         text: this.sanitizeText(word),
-        translation: this.sanitizeText(backText),
-        perWord: [{ src: word, dst: this.sanitizeText(backText) }]
+        translation: this.sanitizeText(backText)
       };
     } catch (e) {
-      alert('Lookup failed. Please try again.');
-      console.error(e);
+      this.handleTranslateError(e, 'clickToken');
     }
   }
 
+  
   async mouseUpSelection() {
     clearTimeout(this.selectionTimer);
 
@@ -149,68 +176,63 @@ export class ReaderComponent {
       const range = sel.getRangeAt(0);
       if (!rightPane.contains(range.commonAncestorContainer)) return;
 
-      const raw = sel.toString();
-      const text = this.sanitizeText(raw);
-      if (!text) return;
+      const wordEls = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.word .w'));
+      const selectedWordEls = wordEls.filter(el => {
+        try { return range.intersectsNode(el); } catch { return false; }
+      });
+      if (!selectedWordEls.length) return;
 
-      const rect = range.getBoundingClientRect();
-      const anchorX = Math.min(Math.max(rect.right, 8), window.innerWidth - 380);
-      const anchorY = Math.min(Math.max(rect.top, 8), window.innerHeight - 220);
+      const wordsInSelection = selectedWordEls.map(el => (el.textContent || '').trim()).filter(Boolean);
+      const uniques = uniqPreserveFirstLower(wordsInSelection);
 
       try {
-        const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
-
-        const words = extractWordsOrdered(text);
-
-        let perWord: { src: string; dst: string }[];
-        if (words.length > 1) {
-          const uniques = uniqPreserveFirstLower(words);
-
-          const misses: string[] = [];
-          const got = new Map<string, string>();
-          for (const w of uniques) {
+        const misses: string[] = [];
+        const got = new Map<string, string>();
+        for (const w of uniques) {
+          const key = `${this.toLang}->${this.fromLang}:${w.toLowerCase()}`;
+          if (this.wordCache.has(key)) got.set(w.toLowerCase(), this.wordCache.get(key)!);
+          else misses.push(w);
+        }
+        if (misses.length) {
+          const translated = await translateMany(this.translate, misses, this.toLang, this.fromLang);
+          misses.forEach((w, i) => {
             const key = `${this.toLang}->${this.fromLang}:${w.toLowerCase()}`;
-            if (this.wordCache.has(key)) {
-              got.set(w.toLowerCase(), this.wordCache.get(key)!);
-            } else {
-              misses.push(w);
-            }
-          }
-
-          if (misses.length) {
-            const translated = await translateMany(this.translate, misses, this.toLang, this.fromLang);
-            misses.forEach((w, i) => {
-              const key = `${this.toLang}->${this.fromLang}:${w.toLowerCase()}`;
-              const val = (translated[i] || '').trim();
-              this.wordCache.set(key, val);
-              got.set(w.toLowerCase(), val);
-            });
-          }
-
-          perWord = words.map(w => ({ src: w, dst: got.get(w.toLowerCase()) || '' }));
-        } else {
-          perWord = [{ src: text, dst: sentenceTr }];
+            const val = (translated[i] || '').trim();
+            this.wordCache.set(key, val);
+            got.set(w.toLowerCase(), val);
+          });
         }
 
-        this.popup = {
-          visible: true,
-          x: anchorX,
-          y: anchorY,
-          text,
-          translation: this.sanitizeText(sentenceTr || ''),
-          perWord
-        };
+        const balloons: Balloon[] = selectedWordEls.map((el) => {
+          const src = (el.textContent || '').trim();
+          const dst = got.get(src.toLowerCase()) || '';
+          const r = el.getBoundingClientRect();
+          return {
+            src,
+            dst,
+            x: Math.min(Math.max(r.left + r.width / 2, 10), window.innerWidth - 10),
+            y: Math.max(r.top - 8, 8)
+          };
+        });
+
+        this.hidePopup();          
+        this.balloons = balloons;  
 
         const uid = this.fb.uid() || 'anon';
-        const uniqueSeen = uniqPreserveFirstLower(words).slice(0, 50);
-        for (const w of uniqueSeen) {
-          this.progress.recordEvent(uid, w, this.toLang, 'seen')
-            .subscribe({ next: () => {}, error: () => {} });
+        for (const w of uniques.slice(0, 50)) {
+          this.progress.recordEvent(uid, w, this.toLang, 'seen').subscribe({ next: () => {}, error: () => {} });
         }
       } catch (e) {
-        console.error('Selection translate failed:', e);
+        this.handleTranslateError(e, 'mouseUpSelection');
       }
     }, 10);
+  }
+
+
+  speakTranslation() {
+    const txt = (this.popup.translation || '').trim();
+    if (!txt) return;
+    this.tts.speak(txt, this.fromLangToBcp47());
   }
 
   speakAll() {
@@ -218,7 +240,6 @@ export class ReaderComponent {
     if (!joined.trim()) return;
     this.tts.speak(joined, this.toLangToBcp47());
   }
-
   speakWord(word: string) {
     if (!word) return;
     this.tts.speak(word, this.toLangToBcp47());
@@ -226,7 +247,8 @@ export class ReaderComponent {
 
   ngOnInit() {
     window.addEventListener('speak-word', ((e: any) => {
-      this.speakWord(e.detail);
+      const w = (e.detail || '').trim();
+      if (w) this.tts.speak(w, this.toLangToBcp47());
     }) as EventListener);
   }
 
@@ -249,15 +271,21 @@ export class ReaderComponent {
     this.hidePopup();
   }
 
+
   @HostListener('document:click', ['$event'])
   onDocClick(ev: MouseEvent) {
-    if (!this.popup.visible) return;
     const target = ev.target as HTMLElement;
     const insidePopup = !!target.closest('.popup');
     const onToken = !!target.closest('.tok');
-    if (!insidePopup && !onToken) this.hidePopup();
+    if (!insidePopup && !onToken) {
+      this.hidePopup();
+      this.clearBalloons();
+    }
   }
 
   @HostListener('document:keydown.escape', ['$event'])
-  onEsc() { this.hidePopup(); }
+  onEsc() {
+    this.hidePopup();
+    this.clearBalloons();
+  }
 }

@@ -1,35 +1,58 @@
 <div
   class="popup"
   [ngStyle]="{ left: x + 'px', top: y + 'px' }"
+  *ngIf="visible"
   (mousedown)="$event.stopPropagation()"
   (click)="$event.stopPropagation()"
+  [style.max-height]="perWord?.length ? '80vh' : null"
+  [style.overflow-y]="perWord?.length ? 'auto' : null"
 >
   <div class="card">
-    <div class="mini-gloss" *ngIf="perWord?.length">
+    <!-- Original (selected) sentence -->
+    <div class="orig" *ngIf="text">{{ text }}</div>
+
+    <!-- Always show: translation + speaker -->
+    <div class="row">
+      <div class="translation">{{ translation }}</div>
       <button
-        class="chip"
+        class="speak-btn"
         type="button"
-        *ngFor="let g of perWord"
-        (click)="speakWord.emit(g.src)"
-        [title]="g.src + ' → ' + g.dst"
+        (click)="speak.emit()"
+        aria-label="Speak translation"
+        title="Speak translation"
       >
-        <b class="src">{{ g.src }}</b>
-        <span class="sep">—</span>
-        <span class="dst">{{ g.dst }}</span>
-        <span aria-hidden="true" class="icon">🔊</span>
+        🔊
       </button>
     </div>
 
-    <div class="term">{{ text }}</div>
+    <!-- Expanded content if per-word glosses exist -->
+    <ng-container *ngIf="perWord?.length">
+      <div class="mini-gloss">
+        <button
+          class="chip"
+          type="button"
+          *ngFor="let g of perWord"
+          (click)="speakWord.emit(g.src)"
+          [title]="g.src + ' → ' + g.dst"
+        >
+          <b class="src">{{ g.src }}</b>
+          <span class="sep">—</span>
+          <span class="dst">{{ g.dst }}</span>
+          <span aria-hidden="true" class="icon">🔊</span>
+        </button>
+      </div>
 
-    <div class="translation" *ngIf="translation">
-      <b>Translation:</b> {{ translation }}
-    </div>
+      <div class="translation" *ngIf="translation">
+        <b>Translation:</b> {{ translation }}
+      </div>
 
-    <div class="actions">
-      <button (click)="speak.emit()">Speak</button>
-      <button (click)="markKnown.emit()">Mark known</button>
-      <button (click)="close.emit()">Close</button>
-    </div>
+      <div class="actions">
+        <button (click)="speak.emit()">Speak</button>
+        <button (click)="markKnown.emit()">Mark known</button>
+        <button (click)="close.emit()">Close</button>
+      </div>
+    </ng-container>
+
+    <span class="arrow" aria-hidden="true"></span>
   </div>
 </div>
