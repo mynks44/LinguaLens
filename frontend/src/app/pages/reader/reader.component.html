@@ -41,36 +41,49 @@
       <ng-container *ngFor="let t of tokens">
         <span *ngIf="isWord(t); else plainText" class="tok word">
           <span class="w">{{ t.text }}</span>
+          <button
+            class="speak-word"
+            type="button"
+            aria-label="Speak word"
+            (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+            (click)="speakWord(t.text); $event.stopPropagation();"
+          >
+            🔊
+          </button>
         </span>
-
         <ng-template #plainText>{{ t.text }}</ng-template>
       </ng-container>
-
-      <div
-        *ngFor="let b of balloons"
-        class="balloon"
-        [style.left.px]="b.x"
-        [style.top.px]="b.y"
-        (mousedown)="$event.stopPropagation()"
-        (click)="speakWord(b.src)"
-        title="{{ b.src }} → {{ b.dst }}"
-      >
-        <span class="balloon-text">{{ b.dst }}</span>
-        <span class="balloon-icon" aria-hidden="true">🔊</span>
-        <span class="arrow" aria-hidden="true"></span>
-      </div>
     </div>
   </div>
 
-  <app-popup-translation
-    *ngIf="popup.visible"
-    [x]="popup.x"
-    [y]="popup.y"
-    [text]="popup.text"
-    [translation]="popup.translation"
-    (speak)="speakWord(popup.text)"
-    (close)="hidePopup()"
-    (markKnown)="markKnown()"
-  >
-  </app-popup-translation>
+<!-- ... your toolbar + columns + tokens ... -->
+
+<!-- Big popup (word click OR sentence selection) -->
+<app-popup-translation
+  *ngIf="popup.visible"
+  [visible]="popup.visible"
+  [x]="popup.x"
+  [y]="popup.y"
+  [original]="popup.original"
+  [translation]="popup.translation"
+  [isWordPopup]="popup.isWordPopup"
+  (speak)="popup.isWordPopup ? speakWord(popup.original) : speakTranslation()"
+  (markKnown)="markKnown()"
+  (close)="hidePopup()"
+  (pickWord)="onPopupPickWord($event)"  
+></app-popup-translation>
+
+<!-- Mini popup (only translation + speaker, anchored to the word location) -->
+<app-popup-translation
+  *ngIf="miniPopup.visible"
+  [visible]="miniPopup.visible"
+  [x]="miniPopup.x"
+  [y]="miniPopup.y"
+  [original]="' '"                 
+  [translation]="miniPopup.translation"
+  [isWordPopup]="false"
+  (speak)="speakMini()"
+></app-popup-translation>
+
+
 </div>

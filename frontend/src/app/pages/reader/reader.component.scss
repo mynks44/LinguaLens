@@ -36,8 +36,10 @@
   line-height: 2.1;
   cursor: text;
   user-select: text;
+  background: #fff;
 }
 
+/* token styling */
 .tok {
   position: relative;
   display: inline-block;
@@ -49,7 +51,7 @@
   border-bottom: 1px dotted rgba(0, 0, 0, .15);
 }
 
-
+/* hover speaker on words */
 .speak-word {
   position: absolute;
   top: -1.25rem;
@@ -78,14 +80,18 @@
 
 .lang-tag { opacity: .6; margin-left: 8px; }
 
+/* --- Optional legacy blocks (safe to remove if unused) -------------------- */
+
+/* If you re-enable a per-word mini gloss list inside any component */
 .mini-gloss {
   max-height: 180px;
   overflow-y: auto;
 }
 
+/* If you re-enable anchored inline balloons for word translations */
 .balloon {
-  position: fixed; 
-  transform: translate(-50%, -100%); 
+  position: fixed;
+  transform: translate(-50%, -100%); /* center on X, sit above Y anchor */
   background: #111;
   color: #fff;
   font-size: 12px;
@@ -117,7 +123,7 @@
   width: 0; height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 6px solid #111; 
+  border-top: 6px solid #111;
 }
 
 .balloon:hover { background: #000; }
