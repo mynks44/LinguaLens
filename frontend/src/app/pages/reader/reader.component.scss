@@ -37,6 +37,7 @@
   cursor: text;
   user-select: text;
   background: #fff;
+  white-space: pre-wrap; /* preserve spaces/newlines */
 }
 
 /* hide native blue selection inside reader; we'll apply our own highlight */
@@ -48,35 +49,16 @@
 /* token styling */
 .tok {
   position: relative;
-  display: inline-block;
+  display: inline; /* render true spaces as tokens */
   padding: 0 .1rem;
   user-select: text;
 }
 
-.tok.word {
-  border-bottom: 1px dotted rgba(0, 0, 0, .15);
-}
+/* ensure exact whitespace inside plain tokens is kept */
+.tok .w { white-space: pre; }
 
-/* hover speaker on words */
-.speak-word {
-  position: absolute;
-  top: -1.25rem;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  line-height: 1;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 0 4px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .15s ease;
-  margin-left: .25rem;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -ms-user-select: none;
+.tok.word {
+  // border-bottom: 1px dotted rgba(0, 0, 0, .15);
 }
 
 .tok.word:hover .speak-word {

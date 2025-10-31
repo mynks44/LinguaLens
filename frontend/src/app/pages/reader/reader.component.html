@@ -38,25 +38,16 @@
       (mouseup)="mouseUpSelection()"
       (click)="clickToken($event)"
     >
-      <ng-container *ngFor="let t of tokens">
-        <span *ngIf="isWord(t); else plainText" class="tok word">
-          <span class="w">{{ t.text }}</span>
-          <button
-            class="speak-word"
-            type="button"
-            aria-label="Speak word"
-            (mousedown)="$event.preventDefault(); $event.stopPropagation()"
-            (click)="speakWord(t.text); $event.stopPropagation();"
-          >
-            🔊
-          </button>
+      <ng-container *ngFor="let t of tokens; let i = index">
+        <!-- render both words and plain tokens inside a .tok so highlighting covers spaces/punctuation too -->
+        <span class="tok" [attr.data-index]="i">
+          <span class="w" [innerText]="t.text"></span>
         </span>
-        <ng-template #plainText>{{ t.text }}</ng-template>
       </ng-container>
     </div>
   </div>
 
-<!-- ... your toolbar + columns + tokens ... -->
+<!-- ...existing code... -->
 
 <!-- Big popup (word click OR sentence selection) -->
 <app-popup-translation

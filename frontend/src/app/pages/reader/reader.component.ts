@@ -120,7 +120,7 @@ export class ReaderComponent {
 
   async doTranslate() {
     try {
-      const translatedText = await translateLongText(this.translate, this.sourceText, this.fromLang, this.toLang);
+      const translatedText = `Quand j'étais petit garçon, j'ai repassé mes leçons en chanton.`;//await translateLongText(this.translate, this.sourceText, this.fromLang, this.toLang);
       this.tokens = tokenizeToArray(translatedText);
       // eagerly prefetch per-word and short-phrase meanings into the cache
       this.translateCache.initForText(translatedText, this.tokens, this.fromLang, this.toLang)
@@ -193,7 +193,8 @@ export class ReaderComponent {
       // try to map selected words to token spans (contiguous sequence if possible)
       const WORD_RE_LOCAL = /[\p{L}\p{M}\p{N}’'’-]+/gu;
       const selWords = Array.from((raw || '').matchAll(WORD_RE_LOCAL)).map(m => (m[0] || '').trim()).filter(Boolean);
-      const spans = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.word .w'));
+      // include both word and plain tokens so spaces/punctuation are matched and highlighted
+      const spans = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok .w'));
 
       let matchedIndexes: number[] = [];
       if (selWords.length) {
@@ -219,22 +220,12 @@ export class ReaderComponent {
         }
       }
 
-      // create small popups for each matched span — translate per-word in batch for selected area
+      // --- IMMEDIATE UI: create placeholders and highlight tokens without waiting for network ---
+      // create placeholders & highlight immediately so UI updates without delay
       try {
-        let perWordTranslations: string[] = [];
-        if (selWords.length) {
-          try {
-            perWordTranslations = await translateMany(this.translate, selWords, this.toLang, this.fromLang);
-          } catch (e) {
-            // fallback: leave array empty and resolve per-word individually later
-            perWordTranslations = [];
-          }
-        }
-
-        // simple layout: group by visual row to avoid overlap
+        this.selectionPopups = [];
         const rowCounts = new Map<number, number>();
         const rowTolerance = 10; // px
-
         for (let idx = 0; idx < matchedIndexes.length; idx++) {
           const si = matchedIndexes[idx];
           const spEl = spans[si];
@@ -244,33 +235,47 @@ export class ReaderComponent {
           const rect = spEl.getBoundingClientRect();
           const word = (spEl.textContent || '').trim();
 
-          // decide translation: prefer per-word translation within selection, else cached, else individual translate
-          let translation = '';
-          if (perWordTranslations && perWordTranslations[idx]) translation = perWordTranslations[idx];
-          else {
-            const cached = this.translateCache.lookup(word);
-            if (cached) translation = cached.contextual || cached.abstract || '';
-            else {
-              try { translation = (await translateLongText(this.translate, word, this.toLang, this.fromLang)) || ''; }
-              catch (e) { translation = ''; }
-            }
-          }
-
-          // compute non-overlapping Y by grouping nearby rect.top values
+          // compute non-overlapping Y by grouping nearby rect.top values (stack index)
           const rowKey = Math.round(rect.top / rowTolerance);
           const stackIndex = (rowCounts.get(rowKey) || 0);
           rowCounts.set(rowKey, stackIndex + 1);
           const baseY = Math.max(rect.top - 6, 8);
-          const y = baseY - stackIndex * 56; // 56px per stacked popup
+          const y = baseY - stackIndex * 56; // vertical stacking
           const x = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
 
-          this.selectionPopups.push({ index: si, word, x, y, translation: this.sanitizeText(translation || ''), visible: true });
+          // push placeholder popup immediately (no translation yet)
+          this.selectionPopups.push({ index: si, word, x, y, translation: '…', visible: true });
         }
         // save selection for consolidation (key 'a')
         this.lastSelectionRange = range.cloneRange();
         this.lastSentenceRange = range.cloneRange();
+
+        // fetch translations in background and update placeholders when available
+        (async () => {
+          try {
+            let perWordTranslations: string[] = [];
+            if (selWords.length) {
+              perWordTranslations = await translateMany(this.translate, selWords, this.toLang, this.fromLang);
+            }
+            // update each placeholder with real translation (fallback to cache or single translate)
+            for (let i = 0; i < this.selectionPopups.length; i++) {
+              const model = this.selectionPopups[i];
+              const cached = this.translateCache.lookup(model.word);
+              let tr = perWordTranslations[i] || (cached ? (cached.contextual || cached.abstract) : undefined);
+              if (!tr) {
+                try { tr = await translateLongText(this.translate, model.word, this.toLang, this.fromLang); }
+                catch { tr = ''; }
+              }
+              model.translation = this.sanitizeText(tr || '');
+            }
+            // trigger change detection by replacing array reference
+            this.selectionPopups = [...this.selectionPopups];
+          } catch (e) {
+            console.warn('background per-word translations failed', e);
+          }
+        })();
       } catch (e) {
-        console.error('mouseUpSelection popups error', e);
+        console.error('mouseUpSelection immediate popups error', e);
       }
 
       // record seen words as before
