@@ -1,9 +1,10 @@
 import { Component, HostListener, ElementRef, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgStyle } from '@angular/common';
-import { translateLongText } from '../../core/services/translate-batch';
+import { translateLongText, translateMany } from '../../core/services/translate-batch';
 
 import { TranslateService } from '../../core/services/translate.service';
+import { TranslateCacheService } from '../../core/services/translate-cache.service';
 import { TtsService } from '../../core/services/tts.service';
 import { KnownWordsService } from '../../core/services/known-words.service';
 import { ProgressService } from '../../core/services/progress.service';
@@ -54,6 +55,9 @@ export class ReaderComponent {
 
   tokens: Token[] = [];
 
+  /** Cache of meanings keyed by lower-case token text */
+  wordMeanings: Map<string, { abstract: string; contextual: string }> = new Map();
+
   popup: PopupState = {
     visible: false, x: 0, y: 0, original: '', translation: '', isWordPopup: false
   };
@@ -63,12 +67,17 @@ export class ReaderComponent {
     visible: false, x: 0, y: 0, translation: ''
   };
 
+  /** Multiple small popups for each selected token/segment */
+  selectionPopups: Array<{ index: number; word: string; x: number; y: number; translation: string; visible: boolean }> = [];
+  private lastSelectionRange: Range | null = null;
+
   /** Store last sentence selection range so we can anchor words inside it */
   private lastSentenceRange: Range | null = null;
   private selectionTimer: any = null;
 
   constructor(
     private translate: TranslateService,
+    private translateCache: TranslateCacheService,
     private tts: TtsService,
     private known: KnownWordsService,
     private progress: ProgressService,
@@ -113,6 +122,9 @@ export class ReaderComponent {
     try {
       const translatedText = await translateLongText(this.translate, this.sourceText, this.fromLang, this.toLang);
       this.tokens = tokenizeToArray(translatedText);
+      // eagerly prefetch per-word and short-phrase meanings into the cache
+      this.translateCache.initForText(translatedText, this.tokens, this.fromLang, this.toLang)
+        .catch(err => console.warn('TranslateCache prefetch failed', err));
       this.hidePopup();
       this.hideMiniPopup();
 
@@ -137,7 +149,10 @@ export class ReaderComponent {
     if (!word || !isWordToken(word)) return;
 
     try {
-      const backText = await translateLongText(this.translate, word, this.toLang, this.fromLang);
+      const key = word.trim();
+      const cached = this.translateCache.lookup(key);
+      const backText = cached ? (cached.contextual || cached.abstract) :
+        await translateLongText(this.translate, word, this.toLang, this.fromLang);
       const rect = tok.getBoundingClientRect();
 
       this.hideMiniPopup();
@@ -146,7 +161,7 @@ export class ReaderComponent {
         x: Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8),
         y: Math.max(rect.top - 6, 8),
         original: this.sanitizeText(word),
-        translation: this.sanitizeText(backText),
+  translation: this.sanitizeText(backText || ''),
         isWordPopup: true
       };
     } catch (e) {
@@ -157,7 +172,6 @@ export class ReaderComponent {
   // Multi-word selection → big popup (no actions) + remember range to anchor words
   async mouseUpSelection() {
     clearTimeout(this.selectionTimer);
-
     this.selectionTimer = setTimeout(async () => {
       const rightPane: HTMLElement =
         (this.elRef.nativeElement as HTMLElement).querySelector('.right')!;
@@ -172,34 +186,99 @@ export class ReaderComponent {
       const text = this.sanitizeText(raw);
       if (!text) return;
 
-      try {
-        const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
+      // clear any previous selection highlights/popups
+      this.clearSelectionHighlights();
+      this.selectionPopups = [];
 
-        const rect = range.getBoundingClientRect();
-        const anchorX = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
-        const anchorY = Math.max(rect.top - 6, 8);
+      // try to map selected words to token spans (contiguous sequence if possible)
+      const WORD_RE_LOCAL = /[\p{L}\p{M}\p{N}’'’-]+/gu;
+      const selWords = Array.from((raw || '').matchAll(WORD_RE_LOCAL)).map(m => (m[0] || '').trim()).filter(Boolean);
+      const spans = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.word .w'));
 
-        this.popup = {
-          visible: true,
-          x: anchorX,
-          y: anchorY,
-          original: text,                                   // show original sentence
-          translation: this.sanitizeText(sentenceTr || ''), // show translation
-          isWordPopup: false
-        };
-        this.hideMiniPopup();
-        this.lastSentenceRange = range.cloneRange();
-
-        // record seen
-        const words = extractWordsOrdered(text);
-        const uid = this.fb.uid() || 'anon';
-        const uniqueSeen = uniqPreserveFirstLower(words).slice(0, 50);
-        for (const w of uniqueSeen) {
-          this.progress.recordEvent(uid, w, this.toLang, 'seen')
-            .subscribe({ next: () => {}, error: () => {} });
+      let matchedIndexes: number[] = [];
+      if (selWords.length) {
+        // try to find contiguous sequence of spans matching selection words
+        const lowerSel = selWords.map(s => s.toLowerCase());
+        for (let i = 0; i <= spans.length - lowerSel.length; i++) {
+          let ok = true;
+          for (let j = 0; j < lowerSel.length; j++) {
+            if ((spans[i + j].textContent || '').trim().toLowerCase() !== lowerSel[j]) { ok = false; break; }
+          }
+          if (ok) {
+            matchedIndexes = Array.from({ length: lowerSel.length }, (_, k) => i + k);
+            break;
+          }
         }
+        // fallback: match each selected word to first unused span occurrence
+        if (!matchedIndexes.length) {
+          const used = new Set<number>();
+          for (const w of lowerSel) {
+            const idx = spans.findIndex((sp, ii) => !used.has(ii) && (sp.textContent || '').trim().toLowerCase() === w);
+            if (idx >= 0) { used.add(idx); matchedIndexes.push(idx); }
+          }
+        }
+      }
+
+      // create small popups for each matched span — translate per-word in batch for selected area
+      try {
+        let perWordTranslations: string[] = [];
+        if (selWords.length) {
+          try {
+            perWordTranslations = await translateMany(this.translate, selWords, this.toLang, this.fromLang);
+          } catch (e) {
+            // fallback: leave array empty and resolve per-word individually later
+            perWordTranslations = [];
+          }
+        }
+
+        // simple layout: group by visual row to avoid overlap
+        const rowCounts = new Map<number, number>();
+        const rowTolerance = 10; // px
+
+        for (let idx = 0; idx < matchedIndexes.length; idx++) {
+          const si = matchedIndexes[idx];
+          const spEl = spans[si];
+          if (!spEl) continue;
+          const tokEl = spEl.closest('.tok') as HTMLElement | null;
+          if (tokEl) tokEl.classList.add('selected');
+          const rect = spEl.getBoundingClientRect();
+          const word = (spEl.textContent || '').trim();
+
+          // decide translation: prefer per-word translation within selection, else cached, else individual translate
+          let translation = '';
+          if (perWordTranslations && perWordTranslations[idx]) translation = perWordTranslations[idx];
+          else {
+            const cached = this.translateCache.lookup(word);
+            if (cached) translation = cached.contextual || cached.abstract || '';
+            else {
+              try { translation = (await translateLongText(this.translate, word, this.toLang, this.fromLang)) || ''; }
+              catch (e) { translation = ''; }
+            }
+          }
+
+          // compute non-overlapping Y by grouping nearby rect.top values
+          const rowKey = Math.round(rect.top / rowTolerance);
+          const stackIndex = (rowCounts.get(rowKey) || 0);
+          rowCounts.set(rowKey, stackIndex + 1);
+          const baseY = Math.max(rect.top - 6, 8);
+          const y = baseY - stackIndex * 56; // 56px per stacked popup
+          const x = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
+
+          this.selectionPopups.push({ index: si, word, x, y, translation: this.sanitizeText(translation || ''), visible: true });
+        }
+        // save selection for consolidation (key 'a')
+        this.lastSelectionRange = range.cloneRange();
+        this.lastSentenceRange = range.cloneRange();
       } catch (e) {
-        this.handleTranslateError(e, 'mouseUpSelection');
+        console.error('mouseUpSelection popups error', e);
+      }
+
+      // record seen words as before
+      const uid = this.fb.uid() || 'anon';
+      const uniqueSeen = uniqPreserveFirstLower(extractWordsOrdered(text)).slice(0, 50);
+      for (const w of uniqueSeen) {
+        this.progress.recordEvent(uid, w, this.toLang, 'seen')
+          .subscribe({ next: () => {}, error: () => {} });
       }
     }, 10);
   }
@@ -235,17 +314,22 @@ export class ReaderComponent {
     const rect = targetEl.getBoundingClientRect();
 
     try {
-      const back = await translateLongText(this.translate, w, this.toLang, this.fromLang);
+      const key = w;
+      const cached = this.translateCache.lookup(key);
+      const back = cached ? (cached.contextual || cached.abstract) :
+        await translateLongText(this.translate, w, this.toLang, this.fromLang);
       this.miniPopup = {
         visible: true,
         x: Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8),
         y: Math.max(rect.top - 6, 8),
-        translation: this.sanitizeText(back || '')
+  translation: this.sanitizeText(back || '')
       };
     } catch (e) {
       this.handleTranslateError(e, 'onPopupPickWord');
     }
   }
+
+  // prefetching is now handled by TranslateCacheService
 
   // --- TTS -------------------------------------------------------------------
 
@@ -309,6 +393,9 @@ export class ReaderComponent {
     if (!insidePopup && !onToken) {
       this.hidePopup();
       this.hideMiniPopup();
+      this.clearSelectionHighlights();
+      this.selectionPopups = [];
+      this.lastSelectionRange = null;
       this.lastSentenceRange = null;
     }
   }
@@ -317,6 +404,53 @@ export class ReaderComponent {
   onEsc() {
     this.hidePopup();
     this.hideMiniPopup();
+    this.clearSelectionHighlights();
+    this.selectionPopups = [];
+    this.lastSelectionRange = null;
     this.lastSentenceRange = null;
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  async onAnyKey(ev: KeyboardEvent) {
+    if (!ev || ev.key.toLowerCase() !== 'a') return;
+    // consolidate individual cloud popups into single full-phrase translation
+    if (!this.selectionPopups || !this.selectionPopups.length) return;
+    const selRange = this.lastSelectionRange;
+    if (!selRange) return;
+    const raw = selRange.toString();
+    const text = this.sanitizeText(raw);
+    if (!text) return;
+
+    try {
+      // remove individual clouds/highlights
+      this.clearSelectionHighlights();
+      this.selectionPopups = [];
+
+      const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
+      const rect = selRange.getBoundingClientRect();
+      const anchorX = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
+      const anchorY = Math.max(rect.top - 6, 8);
+
+      this.popup = {
+        visible: true,
+        x: anchorX,
+        y: anchorY,
+        original: text,
+        translation: this.sanitizeText(sentenceTr || ''),
+        isWordPopup: false
+      };
+      this.hideMiniPopup();
+      this.lastSentenceRange = selRange.cloneRange();
+    } catch (e) {
+      this.handleTranslateError(e, 'consolidateSelection');
+    }
+  }
+
+  private clearSelectionHighlights() {
+    try {
+      const rightPane: HTMLElement = (this.elRef.nativeElement as HTMLElement).querySelector('.right')!;
+      const sels = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.selected'));
+      for (const s of sels) s.classList.remove('selected');
+    } catch (e) { /* ignore */ }
   }
 }

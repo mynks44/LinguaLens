@@ -39,6 +39,12 @@
   background: #fff;
 }
 
+/* hide native blue selection inside reader; we'll apply our own highlight */
+.right ::selection { background: transparent; color: inherit; }
+
+/* our custom selection highlight for tokens */
+.tok.selected { background: linear-gradient(90deg, #ffd54f, #ffc107); color: #111; border-radius: 4px; }
+
 /* token styling */
 .tok {
   position: relative;

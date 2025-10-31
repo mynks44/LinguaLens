@@ -12,9 +12,8 @@ import { ToolbarComponent } from './components/toolbar/toolbar.component';
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
-  title(title: any) {
-    throw new Error('Method not implemented.');
-  }
+  // App title shown in templates
+  title = 'LinguaLens';
   auth = inject(AuthService);
 
   async logout() {

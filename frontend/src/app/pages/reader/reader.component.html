@@ -85,5 +85,19 @@
   (speak)="speakMini()"
 ></app-popup-translation>
 
+<!-- Multiple small popups for each selected token/segment -->
+<ng-container *ngFor="let sp of selectionPopups">
+  <app-popup-translation
+    *ngIf="sp.visible"
+    [visible]="sp.visible"
+    [x]="sp.x"
+    [y]="sp.y"
+    [original]="sp.word"
+    [translation]="sp.translation"
+    [isWordPopup]="false"
+    (speak)="speakMini()"
+  ></app-popup-translation>
+</ng-container>
+
 
 </div>

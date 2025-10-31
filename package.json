@@ -24,6 +24,7 @@
     "wait-on": "^8.0.4"
   },
   "dependencies": {
-    "neo4j-driver": "^5.28.1"
+    "neo4j-driver": "^5.28.1",
+    "ng": "^0.0.0"
   }
 }
