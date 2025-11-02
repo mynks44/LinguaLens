@@ -1,0 +1,19 @@
+<div class="cloud" *ngIf="visible" [style.left.px]="computedLeft" [style.top.px]="computedTop">
+  <div class="bubble" #bubble [style.maxWidth.px]="maxWidth">
+    <div class="text">
+      <div class="orig" *ngIf="original && original.trim()">{{ original }}</div>
+      <div class="trans" *ngIf="(translation && translation.trim()) || (text && text.trim())">{{ (translation && translation.trim()) ? translation : text }}</div>
+    </div>
+    <div class="actions">
+      <button class="speak" (click)="onSpeak()">🔊</button>
+      <button class="close" (click)="onClose()">✕</button>
+    </div>
+  </div>
+
+  <!-- tail: position based on computed tailLeft and whether anchor is above/below -->
+  <div class="tail" *ngIf="tailVisible"
+    [style.left.px]="tailLeft"
+    [class.below]="tailTop === 1"
+    [class.above]="tailTop === 0"
+  ></div>
+</div>

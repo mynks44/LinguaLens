@@ -1,0 +1,45 @@
+.cloud {
+  position: fixed;
+  /* position explicitly via computedLeft/computedTop from the component */
+  z-index: 10030;
+  pointer-events: auto;
+}
+.bubble {
+  background: #fff;
+  color: #111;
+  border-radius: 18px;
+  padding: 10px 48px 10px 14px; /* right padding reserved for actions */
+  min-width: 56px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  display: inline-block;
+  position: relative;
+}
+.bubble .text { font-weight: 600; font-size: 14px; display: block; word-break: break-word; padding-right: 6px; margin-right: 36px; }
+.bubble .text .orig { font-size: 12px; font-weight: 600; opacity: 0.85; color: #222; margin-bottom: 2px; }
+.bubble .text .trans { font-size: 14px; font-weight: 700; color: #111; }
+.bubble .actions { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: flex; gap: 6px; z-index: 2; }
+.bubble .actions .close { background: transparent; border: none; cursor: pointer; }
+.bubble .actions .speak { background: transparent; border: none; cursor: pointer; }
+
+/* triangular CSS tails — centered at 'left' and placed above or below the bubble */
+.tail {
+  position: absolute;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+}
+.tail.above {
+  bottom: -8px; /* bubble above anchor, tail points downward */
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid #fff; /* triangle pointing downwards */
+  box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+}
+.tail.below {
+  top: -8px; /* bubble below anchor, tail points upward */
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 9px solid #fff; /* triangle pointing upwards */
+  box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+}

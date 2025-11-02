@@ -12,6 +12,7 @@ import { FirebaseService } from '../../core/services/firebase.service';
 
 import { Token, tokenizeToArray, isWordToken } from '../../core/utils/tokenize';
 import { PopupTranslationComponent } from '../../components/popup-translation/popup-translation.component';
+import { CloudPopupComponent } from '../../components/cloud-popup/cloud-popup.component';
 
 type PopupState = {
   visible: boolean;
@@ -42,7 +43,7 @@ function uniqPreserveFirstLower(words: string[]): string[] {
 @Component({
   selector: 'app-reader',
   standalone: true,
-  imports: [FormsModule, NgFor, NgIf, NgStyle, PopupTranslationComponent],
+  imports: [FormsModule, NgFor, NgIf, NgStyle, PopupTranslationComponent, CloudPopupComponent],
   templateUrl: './reader.component.html',
   styleUrls: ['./reader.component.scss']
 })
@@ -68,7 +69,8 @@ export class ReaderComponent {
   };
 
   /** Multiple small popups for each selected token/segment */
-  selectionPopups: Array<{ index: number; word: string; x: number; y: number; translation: string; visible: boolean }> = [];
+  // added layout fields: width/height measured by child and absoluteLeft/Top computed here
+  selectionPopups: Array<{ index: number; word: string; x: number; y: number; anchorX: number; anchorY: number; translation: string; visible: boolean; width?: number; height?: number; absoluteLeft?: number; absoluteTop?: number }> = [];
   private lastSelectionRange: Range | null = null;
 
   /** Store last sentence selection range so we can anchor words inside it */
@@ -226,6 +228,17 @@ export class ReaderComponent {
         this.selectionPopups = [];
         const rowCounts = new Map<number, number>();
         const rowTolerance = 10; // px
+        // limit number of clouds to 10 (configurable)
+        const MAX_CLOUDS = 10;
+        if (matchedIndexes.length > MAX_CLOUDS) {
+          // fallback: show single consolidated popup for large selections
+          this.lastSelectionRange = range.cloneRange();
+          const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
+          const rect = range.getBoundingClientRect();
+          const anchorX = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
+          const anchorY = Math.max(rect.top - 6, 8);
+          this.popup = { visible: true, x: anchorX, y: anchorY, original: text, translation: this.sanitizeText(sentenceTr || ''), isWordPopup: false };
+        } else {
         for (let idx = 0; idx < matchedIndexes.length; idx++) {
           const si = matchedIndexes[idx];
           const spEl = spans[si];
@@ -243,12 +256,14 @@ export class ReaderComponent {
           const y = baseY - stackIndex * 56; // vertical stacking
           const x = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
 
-          // push placeholder popup immediately (no translation yet)
-          this.selectionPopups.push({ index: si, word, x, y, translation: '…', visible: true });
+          // push placeholder popup immediately (no translation yet) and include anchor
+          this.selectionPopups.push({ index: si, word, x, y, anchorX: rect.left + rect.width / 2, anchorY: rect.top + rect.height / 2, translation: '…', visible: true });
         }
         // save selection for consolidation (key 'a')
         this.lastSelectionRange = range.cloneRange();
         this.lastSentenceRange = range.cloneRange();
+
+        }
 
         // fetch translations in background and update placeholders when available
         (async () => {
@@ -363,6 +378,99 @@ export class ReaderComponent {
 
   // --- listeners -------------------------------------------------------------
 
+  // called by cloud children when they measure their bubble size
+  onCloudMeasured(ev: { id?: string | number; width: number; height: number }) {
+    try {
+      const id = typeof ev.id === 'number' ? ev.id : (typeof ev.id === 'string' ? parseInt(ev.id, 10) : undefined);
+      if (id === undefined || isNaN(id)) return;
+      const idx = this.selectionPopups.findIndex(p => p.index === id);
+      if (idx < 0) return;
+      const p = this.selectionPopups[idx];
+      p.width = ev.width;
+      p.height = ev.height;
+      // compute a non-overlapping layout whenever a child reports size
+      this.computeSelectionLayout();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Cloud requested speak; emit TTS for the original token in target language (learner is english => pronounce target)
+  onCloudSpeak(text?: string) {
+    const w = (text || '').trim();
+    if (!w) return;
+    try {
+      this.tts.speak(w, this.toLangToBcp47());
+    } catch (e) {
+      console.warn('TTS speak failed', e);
+    }
+  }
+
+  private computeSelectionLayout() {
+    const placed: Array<{ left: number; top: number; width: number; height: number }> = [];
+    const gap = 8;
+    const viewportW = window.innerWidth || 800;
+    const defaultW = 140;
+    const defaultH = 44;
+
+    const intersects = (r1: any, r2: any) => !(r1.left + r1.width + gap <= r2.left || r2.left + r2.width + gap <= r1.left || r1.top + r1.height + gap <= r2.top || r2.top + r2.height + gap <= r1.top);
+
+    // iterate and greedily place each popup
+    for (const p of this.selectionPopups) {
+      const w = p.width || defaultW;
+      const h = p.height || defaultH;
+      // preferred center and above placement
+      const centerX = Math.round(p.anchorX - w / 2);
+      const clampLeft = Math.max(8, Math.min(viewportW - w - 8, centerX));
+      const aboveTop = Math.round(p.anchorY - h - 8);
+      const belowTop = Math.round(p.anchorY + 8);
+
+      const tryPositions: Array<{ left: number; top: number }> = [];
+      // prefer above centered
+      tryPositions.push({ left: clampLeft, top: aboveTop });
+      // shifted positions left/right
+      const shiftStep = Math.max(16, Math.floor(w / 4));
+      for (let s = 1; s <= 3; s++) {
+        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: aboveTop });
+        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: aboveTop });
+      }
+      // try below variants
+      tryPositions.push({ left: clampLeft, top: belowTop });
+      for (let s = 1; s <= 3; s++) {
+        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: belowTop });
+        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: belowTop });
+      }
+
+      let chosen = tryPositions.find(pos => !placed.some(r => intersects(r, { left: pos.left, top: pos.top, width: w, height: h })));
+      if (!chosen) {
+        // fallback: stack below the anchor, place at first non-overlapping vertical offset
+        let row = 0;
+        while (true) {
+          const top = belowTop + row * (h + gap);
+          const left = clampLeft;
+          const cand = { left, top, width: w, height: h };
+          if (!placed.some(r => intersects(r, cand))) { chosen = { left, top }; break; }
+          row++;
+          if (row > 10) { chosen = { left: clampLeft, top: belowTop + 10 * (h + gap) }; break; }
+        }
+      }
+
+      if (chosen) {
+        p.absoluteLeft = chosen.left;
+        p.absoluteTop = Math.max(8, chosen.top);
+        placed.push({ left: p.absoluteLeft, top: p.absoluteTop, width: w, height: h });
+      } else {
+        // worst case, keep previous x/y
+        p.absoluteLeft = p.x - (p.width || defaultW) / 2;
+        p.absoluteTop = p.y;
+        placed.push({ left: p.absoluteLeft, top: p.absoluteTop, width: w, height: h });
+      }
+    }
+
+    // push updated array to trigger change detection
+    this.selectionPopups = [...this.selectionPopups];
+  }
+
   ngOnInit() {
     window.addEventListener('speak-word', ((e: any) => {
       const w = (e.detail || '').trim();
@@ -457,5 +565,10 @@ export class ReaderComponent {
       const sels = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.selected'));
       for (const s of sels) s.classList.remove('selected');
     } catch (e) { /* ignore */ }
+  }
+
+  closeSelectionPopup(index: number) {
+    // remove popup by token index
+    this.selectionPopups = this.selectionPopups.filter(p => p.index !== index);
   }
 }

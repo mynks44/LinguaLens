@@ -76,18 +76,23 @@
   (speak)="speakMini()"
 ></app-popup-translation>
 
-<!-- Multiple small popups for each selected token/segment -->
+<!-- Multiple small cloud popups for each selected token/segment -->
 <ng-container *ngFor="let sp of selectionPopups">
-  <app-popup-translation
-    *ngIf="sp.visible"
+    <app-cloud-popup *ngIf="sp.visible"
     [visible]="sp.visible"
     [x]="sp.x"
     [y]="sp.y"
+    [anchorX]="sp.anchorX"
+    [anchorY]="sp.anchorY"
     [original]="sp.word"
     [translation]="sp.translation"
-    [isWordPopup]="false"
-    (speak)="speakMini()"
-  ></app-popup-translation>
+    [id]="sp.index"
+    [absoluteLeft]="sp.absoluteLeft"
+    [absoluteTop]="sp.absoluteTop"
+    (measured)="onCloudMeasured($event)"
+    (speak)="onCloudSpeak($event)"
+    (close)="closeSelectionPopup(sp.index)"
+  ></app-cloud-popup>
 </ng-container>
 
 
