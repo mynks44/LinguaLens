@@ -70,7 +70,7 @@ export class ReaderComponent {
 
   /** Multiple small popups for each selected token/segment */
   // added layout fields: width/height measured by child and absoluteLeft/Top computed here
-  selectionPopups: Array<{ index: number; word: string; x: number; y: number; anchorX: number; anchorY: number; translation: string; visible: boolean; width?: number; height?: number; absoluteLeft?: number; absoluteTop?: number }> = [];
+  selectionPopups: Array<{ index: number; word: string; x: number; y: number; anchorX: number; anchorY: number; tokenLeft?: number; tokenRight?: number; tokenTop?: number; tokenBottom?: number; translation: string; visible: boolean; width?: number; height?: number; absoluteLeft?: number; absoluteTop?: number }> = [];
   private lastSelectionRange: Range | null = null;
 
   /** Store last sentence selection range so we can anchor words inside it */
@@ -252,12 +252,26 @@ export class ReaderComponent {
           const rowKey = Math.round(rect.top / rowTolerance);
           const stackIndex = (rowCounts.get(rowKey) || 0);
           rowCounts.set(rowKey, stackIndex + 1);
+          // compute initial stacking & anchor center
           const baseY = Math.max(rect.top - 6, 8);
           const y = baseY - stackIndex * 56; // vertical stacking
           const x = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
 
-          // push placeholder popup immediately (no translation yet) and include anchor
-          this.selectionPopups.push({ index: si, word, x, y, anchorX: rect.left + rect.width / 2, anchorY: rect.top + rect.height / 2, translation: '…', visible: true });
+          // push placeholder popup immediately (no translation yet) and include token bbox
+          this.selectionPopups.push({
+            index: si,
+            word,
+            x,
+            y,
+            anchorX: rect.left + rect.width / 2,
+            anchorY: rect.top + rect.height / 2,
+            tokenLeft: rect.left,
+            tokenRight: rect.right,
+            tokenTop: rect.top,
+            tokenBottom: rect.bottom,
+            translation: '…',
+            visible: true
+          } as any);
         }
         // save selection for consolidation (key 'a')
         this.lastSelectionRange = range.cloneRange();
@@ -420,28 +434,43 @@ export class ReaderComponent {
       const w = p.width || defaultW;
       const h = p.height || defaultH;
       // preferred center and above placement
-      const centerX = Math.round(p.anchorX - w / 2);
-      const clampLeft = Math.max(8, Math.min(viewportW - w - 8, centerX));
-      const aboveTop = Math.round(p.anchorY - h - 8);
-      const belowTop = Math.round(p.anchorY + 8);
+  const centerX = Math.round((p.anchorX || ( (p.tokenLeft || 0) + ((p.tokenRight || 0) - (p.tokenLeft || 0)) / 2 )) - w / 2);
+  const clampLeft = Math.max(8, Math.min(viewportW - w - 8, centerX));
+  const margin = 8;
+  const aboveTop = Math.round((p.tokenTop !== undefined ? p.tokenTop : p.anchorY) - h - margin);
+  const belowTop = Math.round((p.tokenBottom !== undefined ? p.tokenBottom : p.anchorY) + margin);
 
-      const tryPositions: Array<{ left: number; top: number }> = [];
+      const tryPositions: Array<{ left: number; top: number; anchorAdjust?: 'center'|'left'|'right' }> = [];
       // prefer above centered
-      tryPositions.push({ left: clampLeft, top: aboveTop });
+      tryPositions.push({ left: clampLeft, top: aboveTop, anchorAdjust: 'center' });
+      // also try placing entirely left/right of the token to avoid covering it
+      if (p.tokenLeft !== undefined && p.tokenRight !== undefined) {
+        const leftOf = Math.round(p.tokenLeft - w - margin);
+        const rightOf = Math.round(p.tokenRight + margin);
+        if (leftOf >= 8) tryPositions.push({ left: leftOf, top: aboveTop, anchorAdjust: 'left' });
+        if (rightOf + w <= viewportW - 8) tryPositions.push({ left: rightOf, top: aboveTop, anchorAdjust: 'right' });
+      }
       // shifted positions left/right
       const shiftStep = Math.max(16, Math.floor(w / 4));
       for (let s = 1; s <= 3; s++) {
-        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: aboveTop });
-        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: aboveTop });
+        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: aboveTop, anchorAdjust: 'center' });
+        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: aboveTop, anchorAdjust: 'center' });
       }
       // try below variants
-      tryPositions.push({ left: clampLeft, top: belowTop });
+      tryPositions.push({ left: clampLeft, top: belowTop, anchorAdjust: 'center' });
+      // try left/right of token below as well
+      if (p.tokenLeft !== undefined && p.tokenRight !== undefined) {
+        const leftOf = Math.round(p.tokenLeft - w - margin);
+        const rightOf = Math.round(p.tokenRight + margin);
+        if (leftOf >= 8) tryPositions.push({ left: leftOf, top: belowTop, anchorAdjust: 'left' });
+        if (rightOf + w <= viewportW - 8) tryPositions.push({ left: rightOf, top: belowTop, anchorAdjust: 'right' });
+      }
       for (let s = 1; s <= 3; s++) {
-        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: belowTop });
-        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: belowTop });
+        tryPositions.push({ left: Math.max(8, clampLeft - s * shiftStep), top: belowTop, anchorAdjust: 'center' });
+        tryPositions.push({ left: Math.min(viewportW - w - 8, clampLeft + s * shiftStep), top: belowTop, anchorAdjust: 'center' });
       }
 
-      let chosen = tryPositions.find(pos => !placed.some(r => intersects(r, { left: pos.left, top: pos.top, width: w, height: h })));
+  let chosen = tryPositions.find(pos => !placed.some(r => intersects(r, { left: pos.left, top: pos.top, width: w, height: h })));
       if (!chosen) {
         // fallback: stack below the anchor, place at first non-overlapping vertical offset
         let row = 0;
@@ -458,13 +487,22 @@ export class ReaderComponent {
       if (chosen) {
         p.absoluteLeft = chosen.left;
         p.absoluteTop = Math.max(8, chosen.top);
+        // adjust anchorX so tail points to token border when placed left/right
+        if (chosen.anchorAdjust === 'left' && p.tokenLeft !== undefined) {
+          p.anchorX = p.tokenLeft; // point to left edge of token
+        } else if (chosen.anchorAdjust === 'right' && p.tokenRight !== undefined) {
+          p.anchorX = p.tokenRight; // point to right edge of token
+        } else {
+          // center or default: keep anchorX as token center
+          p.anchorX = p.anchorX; // noop
+        }
         placed.push({ left: p.absoluteLeft, top: p.absoluteTop, width: w, height: h });
       } else {
         // worst case, keep previous x/y
         p.absoluteLeft = p.x - (p.width || defaultW) / 2;
         p.absoluteTop = p.y;
         placed.push({ left: p.absoluteLeft, top: p.absoluteTop, width: w, height: h });
-      }
+  }
     }
 
     // push updated array to trigger change detection

@@ -39,6 +39,15 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
   tailVisible = true;
   computedLeft = 0;
   computedTop = 0;
+  // SVG tail geometry
+  svgLeft = 0;
+  svgTop = 0;
+  svgWidth = 0;
+  svgHeight = 0;
+  tailPath = '';
+  // mask circle coords inside SVG (for blending stroke into bubble)
+  startMaskX = 0;
+  startMaskY = 0;
 
   private ro: ResizeObserver | null = null;
 
@@ -109,6 +118,65 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
 
       // also emit measured size for parent in case parent wants to run collision layout
       this.measured.emit({ id: this.id, width: bw, height: bh });
+
+      // compute SVG tail geometry that connects the bubble edge to the anchor point
+      // we'll render an SVG that covers the rectangle between bubble and anchor (with padding)
+      const pad = 24;
+      const absBubbleLeft = this.computedLeft;
+      const absBubbleTop = this.computedTop;
+      const absAnchorX = this.anchorX;
+      const absAnchorY = this.anchorY;
+
+      const minLeft = Math.min(absBubbleLeft, absAnchorX) - pad;
+      const minTop = Math.min(absBubbleTop, absAnchorY) - pad;
+      const maxRight = Math.max(absBubbleLeft + bw, absAnchorX) + pad;
+      const maxBottom = Math.max(absBubbleTop + bh, absAnchorY) + pad;
+
+      this.svgLeft = Math.round(minLeft);
+      this.svgTop = Math.round(minTop);
+      this.svgWidth = Math.max(0, Math.round(maxRight - minLeft));
+      this.svgHeight = Math.max(0, Math.round(maxBottom - minTop));
+
+      // coordinates relative to svg
+  const startCX = absBubbleLeft + bw / 2 - this.svgLeft;
+  const startCY = absBubbleTop + bh / 2 - this.svgTop;
+    // angle from bubble center to anchor
+    const dx = absAnchorX - (absBubbleLeft + bw / 2);
+    const dy = absAnchorY - (absBubbleTop + bh / 2);
+    const theta = Math.atan2(dy, dx);
+    const nx = Math.cos(theta), ny = Math.sin(theta);
+    // compute intersection of ray from bubble center with the rounded rect boundary (approx by rect)
+  const halfW = bw / 2;
+  const halfH = bh / 2;
+  const tx = halfW / Math.max(1e-6, Math.abs(nx));
+  const ty = halfH / Math.max(1e-6, Math.abs(ny));
+  const t = Math.min(tx, ty);
+  const startX = startCX + nx * t;
+  const startY = startCY + ny * t;
+
+    const anchorRelX = absAnchorX - this.svgLeft;
+    const anchorRelY = absAnchorY - this.svgTop;
+
+    // tail base width (not actively used for the thin stroke but kept for potential future use)
+    const halfBase = Math.min(10, Math.max(6, bw * 0.06));
+
+    // For a thin connector we use a single cubic curve from the computed start point to the anchor
+    const dist = Math.hypot(dx, dy);
+    const cpDist1 = Math.max(12, Math.min(Math.max(24, dist * 0.25), 120));
+    const cpDist2 = Math.max(8, Math.min(Math.max(20, dist * 0.35), 140));
+    // add a small perpendicular offset to ensure curvature (avoid collinear control points)
+    const perpScale = Math.max(6, Math.min(24, bw * 0.08));
+    const px = -ny, py = nx; // perpendicular
+    const cp1x = startX + nx * cpDist1 + px * perpScale;
+    const cp1y = startY + ny * cpDist1 + py * perpScale;
+    const cp2x = anchorRelX - nx * cpDist2 + px * (perpScale * 0.3);
+    const cp2y = anchorRelY - ny * cpDist2 + py * (perpScale * 0.3);
+
+  this.tailPath = `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${anchorRelX},${anchorRelY}`;
+
+  // set small mask circle position (relative to svg) to blend stroke into the bubble
+  this.startMaskX = Math.round(startX);
+  this.startMaskY = Math.round(startY);
     } catch (e) {
       // ignore
     }

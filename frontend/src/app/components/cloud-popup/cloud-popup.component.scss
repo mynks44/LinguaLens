@@ -3,21 +3,28 @@
   /* position explicitly via computedLeft/computedTop from the component */
   z-index: 10030;
   pointer-events: auto;
+  transition: left .22s cubic-bezier(.2,.9,.2,1), top .22s cubic-bezier(.2,.9,.2,1);
 }
+.tail-svg { position: fixed; pointer-events: none; z-index: 10028; overflow: visible; }
+.tail-path { fill: none; stroke: #000; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round; transition: opacity .18s ease, stroke .18s ease; }
+/* removed .tail-start-mask -- we no longer render the white circle at the start of the stroke */
+.bubble { transition: transform .18s ease, box-shadow .18s ease; }
 .bubble {
   background: #fff;
   color: #111;
   border-radius: 18px;
-  padding: 10px 48px 10px 14px; /* right padding reserved for actions */
-  min-width: 56px;
+  padding: 8px 28px 8px 10px; /* tighter padding so bubble size follows text */
+  min-width: 40px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   display: inline-block;
   position: relative;
 }
-.bubble .text { font-weight: 600; font-size: 14px; display: block; word-break: break-word; padding-right: 6px; margin-right: 36px; }
+.bubble .text { font-weight: 600; font-size: 14px; display: block; word-break: break-word; padding-right: 6px; margin-right: 12px; }
 .bubble .text .orig { font-size: 12px; font-weight: 600; opacity: 0.85; color: #222; margin-bottom: 2px; }
 .bubble .text .trans { font-size: 14px; font-weight: 700; color: #111; }
-.bubble .actions { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: flex; gap: 6px; z-index: 2; }
+.bubble .actions { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); display: flex; gap: 6px; z-index: 2; }
+.bubble .actions button { padding: 6px; min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+.bubble .actions .speak { font-size: 14px; }
 .bubble .actions .close { background: transparent; border: none; cursor: pointer; }
 .bubble .actions .speak { background: transparent; border: none; cursor: pointer; }
 

@@ -1,4 +1,17 @@
 <div class="cloud" *ngIf="visible" [style.left.px]="computedLeft" [style.top.px]="computedTop">
+  <!-- SVG connector: thin curved stroke with arrow marker that visually links bubble to target token -->
+  <svg *ngIf="visible && svgWidth > 0 && svgHeight > 0" class="tail-svg" [attr.width]="svgWidth" [attr.height]="svgHeight" [style.left.px]="svgLeft" [style.top.px]="svgTop" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <!-- arrow marker: tip aligned with path end (refX at right side), keep size in user space for consistent look -->
+      <marker id="cloud-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 10 10">
+        <!-- solid black arrowhead for high contrast -->
+        <path d="M0,0 L10,5 L0,10 z" fill="#000" />
+      </marker>
+    </defs>
+    <path [attr.d]="tailPath" class="tail-path" [attr.marker-end]="'url(#cloud-arrow)'" />
+    <!-- removed the white blend mask circle to avoid an extra rounded artifact on the bubble -->
+  </svg>
+
   <div class="bubble" #bubble [style.maxWidth.px]="maxWidth">
     <div class="text">
       <div class="orig" *ngIf="original && original.trim()">{{ original }}</div>
@@ -6,14 +19,6 @@
     </div>
     <div class="actions">
       <button class="speak" (click)="onSpeak()">🔊</button>
-      <button class="close" (click)="onClose()">✕</button>
     </div>
   </div>
-
-  <!-- tail: position based on computed tailLeft and whether anchor is above/below -->
-  <div class="tail" *ngIf="tailVisible"
-    [style.left.px]="tailLeft"
-    [class.below]="tailTop === 1"
-    [class.above]="tailTop === 0"
-  ></div>
 </div>
