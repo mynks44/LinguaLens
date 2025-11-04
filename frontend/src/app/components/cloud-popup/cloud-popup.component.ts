@@ -92,10 +92,12 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
       const bw = bubble.offsetWidth || bubble.getBoundingClientRect().width;
       const bh = bubble.offsetHeight || bubble.getBoundingClientRect().height;
 
-      // prefer placing above; if not enough space, place below
-      const margin = 8;
-      const preferAboveTop = this.anchorY - bh - margin;
-      const belowTop = this.anchorY + margin;
+  // prefer placing above; if not enough space, place below
+  const margin = 8;
+  // extra vertical gap to give arrows space and keep clouds visually separated from text
+  const verticalExtra = 12; // px
+  const preferAboveTop = this.anchorY - bh - (margin + verticalExtra);
+  const belowTop = this.anchorY + (margin + verticalExtra);
       const above = preferAboveTop >= 8;
 
       // compute left such that bubble is centered on anchorX, but clamped to viewport
@@ -106,6 +108,20 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
       // if parent supplied absolute coordinates, use them instead
       this.computedLeft = (this.absoluteLeft !== null && this.absoluteLeft !== undefined) ? this.absoluteLeft : clampedLeft;
       this.computedTop = (this.absoluteTop !== null && this.absoluteTop !== undefined) ? this.absoluteTop : top;
+
+      // If the parent provided an explicit absoluteTop, nudge it further away from the text
+      // so arrows have breathing room. If parent did not provide absoluteTop, 'top' already
+      // includes the verticalExtra gap above/below.
+      if (this.absoluteTop !== null && this.absoluteTop !== undefined) {
+        const bubbleBottomProbe = this.computedTop + bh;
+        if (bubbleBottomProbe < this.anchorY) {
+          // bubble is above anchor -> move further up
+          this.computedTop = Math.max(8, this.computedTop - verticalExtra);
+        } else {
+          // bubble is below anchor -> move further down
+          this.computedTop = Math.min(window.innerHeight - bh - 8, this.computedTop + verticalExtra);
+        }
+      }
 
       // compute tail position relative to bubble left
       const relX = this.anchorX - this.computedLeft;
@@ -154,8 +170,17 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
   const startX = startCX + nx * t;
   const startY = startCY + ny * t;
 
-    const anchorRelX = absAnchorX - this.svgLeft;
-    const anchorRelY = absAnchorY - this.svgTop;
+  const anchorRelX = absAnchorX - this.svgLeft;
+  const anchorRelY = absAnchorY - this.svgTop;
+
+  // Ensure the pointer tip doesn't intrude into the text: nudge the final anchor
+  // point slightly outside the text surface depending on whether the bubble is
+  // above or below the anchor. This makes the triangle tip rest on the upper
+  // or lower surface of the highlighted text rather than penetrating it.
+  const touchOffset = 10; // px - how far to push the tip outside the text
+  const bubbleIsAbove = bubbleBottom < absAnchorY;
+  const finalAnchorRelX = anchorRelX;
+  const finalAnchorRelY = clamp(anchorRelY + (bubbleIsAbove ? -touchOffset : touchOffset), 0, this.svgHeight);
 
     // tail base width (not actively used for the thin stroke but kept for potential future use)
     const halfBase = Math.min(10, Math.max(6, bw * 0.06));
@@ -169,10 +194,10 @@ export class CloudPopupComponent implements OnChanges, AfterViewInit {
     const px = -ny, py = nx; // perpendicular
     const cp1x = startX + nx * cpDist1 + px * perpScale;
     const cp1y = startY + ny * cpDist1 + py * perpScale;
-    const cp2x = anchorRelX - nx * cpDist2 + px * (perpScale * 0.3);
-    const cp2y = anchorRelY - ny * cpDist2 + py * (perpScale * 0.3);
+    const cp2x = finalAnchorRelX - nx * cpDist2 + px * (perpScale * 0.3);
+    const cp2y = finalAnchorRelY - ny * cpDist2 + py * (perpScale * 0.3);
 
-  this.tailPath = `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${anchorRelX},${anchorRelY}`;
+  this.tailPath = `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${finalAnchorRelX},${finalAnchorRelY}`;
 
   // set small mask circle position (relative to svg) to blend stroke into the bubble
   this.startMaskX = Math.round(startX);
