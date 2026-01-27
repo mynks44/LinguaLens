@@ -5,6 +5,8 @@ import { AuthComponent } from './pages/auth/auth.component';
 import { ReaderComponent } from './pages/reader/reader.component';
 import { KnownWordsComponent } from './pages/known-words/known-words.component';
 import { StatsComponent } from './pages/stats/stats.component';
+import { NotFoundComponent } from './pages/not-found/not-found.component'; // we'll create next
+
 
 export const routes: Routes = [
   { path: 'auth', component: AuthComponent },
@@ -12,5 +14,6 @@ export const routes: Routes = [
   { path: 'known-words', component: KnownWordsComponent, canActivate: [authGuard] },
   { path: 'stats', component: StatsComponent, canActivate: [authGuard] },
   { path: '', pathMatch: 'full', redirectTo: 'auth' },
-  { path: '**', redirectTo: 'auth' }
+  { path: '**', redirectTo: 'auth' },
+  { path: '**', component: NotFoundComponent }
 ];
