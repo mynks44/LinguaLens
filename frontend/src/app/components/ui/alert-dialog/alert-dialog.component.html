@@ -1,0 +1,17 @@
+<div class="ad-overlay" *ngIf="open">
+  <div class="ad-content" (click)="$event.stopPropagation()">
+    <h2 class="ad-title">{{ title }}</h2>
+    <p class="ad-description" *ngIf="description">{{ description }}</p>
+
+    <ng-content></ng-content>
+
+    <div class="ad-footer">
+      <button type="button" class="btn btn-outline" (click)="onCancel()">
+        {{ cancelText }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="onConfirm()">
+        {{ confirmText }}
+      </button>
+    </div>
+  </div>
+</div>

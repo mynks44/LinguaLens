@@ -1,0 +1,12 @@
+<div class="acc-item">
+  <button class="acc-trigger" type="button" (click)="toggle()">
+    <span class="acc-title">{{ title }}</span>
+    <span class="acc-chevron" [class.acc-chevron-open]="open">⌄</span>
+  </button>
+
+  <div class="acc-content-wrapper" [class.acc-open]="open">
+    <div class="acc-content">
+      <ng-content></ng-content>
+    </div>
+  </div>
+</div>

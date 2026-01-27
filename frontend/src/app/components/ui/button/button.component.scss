@@ -1,0 +1,13 @@
+.btn { @apply inline-flex items-center justify-center rounded-md font-medium transition; }
+
+.btn-default { @apply bg-blue-600 text-white hover:bg-blue-700; }
+.btn-destructive { @apply bg-red-600 text-white hover:bg-red-700; }
+.btn-outline { @apply border border-gray-300 text-gray-900 hover:bg-gray-100; }
+.btn-secondary { @apply bg-gray-200 text-gray-800 hover:bg-gray-300; }
+.btn-ghost { @apply text-gray-800 hover:bg-gray-100; }
+.btn-link { @apply text-blue-600 underline; }
+
+.btn-default-size { @apply h-10 px-4; }
+.btn-sm { @apply h-9 px-3 text-sm; }
+.btn-lg { @apply h-12 px-5 text-lg; }
+.btn-icon { @apply h-10 w-10 p-0; }

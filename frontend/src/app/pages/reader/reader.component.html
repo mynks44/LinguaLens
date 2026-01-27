@@ -1,89 +1,79 @@
-<div class="reader-wrap">
+<div class="reader-wrap" (mouseup)="mouseUpSelection()">
   <div class="toolbar">
-    <button (click)="speakAll()">🔊 Play all</button>
-    <button (click)="pause()">⏸️ Pause</button>
-    <button (click)="resume()">▶️ Resume</button>
-    <button (click)="stop()">⏹️ Stop</button>
-    <span class="lang-tag">{{ toLangToBcp47() }}</span>
+    <button (click)="speakAll()">Play all</button>
+    <button (click)="pause()">Pause</button>
+    <button (click)="resume()">Resume</button>
+    <span class="lang-tag">Target: {{ toLang }}</span>
   </div>
 
   <div class="columns">
     <div class="left">
-      <label>Source language</label>
-      <select [(ngModel)]="fromLang">
-        <option value="en">English</option>
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-        <option value="de">German</option>
-        <option value="hi">Hindi</option>
-      </select>
+      <app-language-select
+        label="Source language"
+        [value]="fromLang"
+        [excludeValue]="toLang"
+        (valueChange)="fromLang = $event"
+      ></app-language-select>
 
-      <label>Target language</label>
-      <select [(ngModel)]="toLang">
-        <option value="en">English</option>
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-        <option value="de">German</option>
-        <option value="hi">Hindi</option>
-      </select>
+      <app-language-select
+        label="Target language"
+        [value]="toLang"
+        [excludeValue]="fromLang"
+        (valueChange)="toLang = $event"
+      ></app-language-select>
 
-      <label>Paste your paragraph</label>
-      <textarea [(ngModel)]="sourceText" rows="9"></textarea>
+      <label class="mt-2">Paste your paragraph</label>
+      <textarea
+        rows="8"
+        [(ngModel)]="sourceText"
+      ></textarea>
 
       <button class="cta" (click)="doTranslate()">Translate →</button>
     </div>
 
     <div
       class="right"
-      (mouseup)="mouseUpSelection()"
-      (click)="clickToken($event)"
+      #readerContainer
     >
       <ng-container *ngFor="let t of tokens">
-        <span *ngIf="isWord(t); else plainText" class="tok word">
+        <span
+          *ngIf="t.kind === 'word'; else nonWord"
+          class="tok word"
+          (click)="clickToken($event)"
+        >
           <span class="w">{{ t.text }}</span>
-          <button
-            class="speak-word"
-            type="button"
-            aria-label="Speak word"
-            (mousedown)="$event.preventDefault(); $event.stopPropagation()"
-            (click)="speakWord(t.text); $event.stopPropagation();"
-          >
-            🔊
-          </button>
         </span>
-        <ng-template #plainText>{{ t.text }}</ng-template>
+
+        <ng-template #nonWord>
+          <span class="tok">{{ t.text }}</span>
+        </ng-template>
       </ng-container>
     </div>
   </div>
 
-<!-- ... your toolbar + columns + tokens ... -->
+  <!-- main popup (word or sentence) -->
+  <app-popup-translation
+    [visible]="popup.visible"
+    [x]="popup.x"
+    [y]="popup.y"
+    [original]="popup.original"
+    [translation]="popup.translation"
+    [isWordPopup]="popup.isWordPopup"
+    (speak)="speakTranslation()"
+    (markKnown)="markKnown()"
+    (close)="hidePopup()"
+    (pickWord)="onPopupPickWord($event)"
+  ></app-popup-translation>
 
-<!-- Big popup (word click OR sentence selection) -->
-<app-popup-translation
-  *ngIf="popup.visible"
-  [visible]="popup.visible"
-  [x]="popup.x"
-  [y]="popup.y"
-  [original]="popup.original"
-  [translation]="popup.translation"
-  [isWordPopup]="popup.isWordPopup"
-  (speak)="popup.isWordPopup ? speakWord(popup.original) : speakTranslation()"
-  (markKnown)="markKnown()"
-  (close)="hidePopup()"
-  (pickWord)="onPopupPickWord($event)"  
-></app-popup-translation>
-
-<!-- Mini popup (only translation + speaker, anchored to the word location) -->
-<app-popup-translation
-  *ngIf="miniPopup.visible"
-  [visible]="miniPopup.visible"
-  [x]="miniPopup.x"
-  [y]="miniPopup.y"
-  [original]="' '"                 
-  [translation]="miniPopup.translation"
-  [isWordPopup]="false"
-  (speak)="speakMini()"
-></app-popup-translation>
-
-
+  <!-- mini popup for single word inside sentence -->
+  <div
+    class="mini-popup"
+    *ngIf="miniPopup.visible"
+    [ngStyle]="{ left: miniPopup.x + 'px', top: miniPopup.y + 'px' }"
+    (click)="$event.stopPropagation()"
+  >
+    <span class="mini-text">{{ miniPopup.translation }}</span>
+    <button class="mini-speak" (click)="speakMini()">🔊</button>
+    <span class="arrow" aria-hidden="true"></span>
+  </div>
 </div>

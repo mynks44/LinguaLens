@@ -11,14 +11,25 @@ import { FirebaseService } from '../../core/services/firebase.service';
 
 import { Token, tokenizeToArray, isWordToken } from '../../core/utils/tokenize';
 import { PopupTranslationComponent } from '../../components/popup-translation/popup-translation.component';
+import { LanguageSelectComponent } from '../../components/language-select/language-select.component';
+import { AccordionComponent } from '../../components/ui/accordion/accordion.component';
+import { AccordionItemComponent } from '../../components/ui/accordion-item/accordion-item.component';
+import { AlertComponent } from '../../components/ui/alert/alert.component';
+import { AlertDialogComponent } from '../../components/ui/alert-dialog/alert-dialog.component';
+import { AvatarComponent } from '../../components/ui/avatar/avatar.component';
+import { BadgeComponent } from '../../components/ui/badge/badge.component';
+import { ButtonComponent } from '../../components/ui/button/button.component';
+import { BreadcrumbComponent } from '../../components/ui/breadcrumb/breadcrumb.component';
+import { CardComponent } from '../../components/ui/card/card.component';
+import { CalendarComponent } from '../../components/ui/calendar/calendar.component';
 
 type PopupState = {
   visible: boolean;
   x: number;
   y: number;
-  original: string;     // word or sentence
-  translation: string;  // translation
-  isWordPopup: boolean; // show actions if true
+  original: string;
+  translation: string;
+  isWordPopup: boolean;
 };
 
 type MiniPopupState = {
@@ -41,7 +52,27 @@ function uniqPreserveFirstLower(words: string[]): string[] {
 @Component({
   selector: 'app-reader',
   standalone: true,
-  imports: [FormsModule, NgFor, NgIf, NgStyle, PopupTranslationComponent],
+  imports: [
+    FormsModule,
+    NgFor,
+    NgIf,
+    NgStyle,
+    PopupTranslationComponent,
+    LanguageSelectComponent,
+BadgeComponent,
+  ButtonComponent,
+  BreadcrumbComponent,
+  CardComponent,
+  CalendarComponent,
+  AccordionComponent,
+  AccordionItemComponent,
+  AlertComponent,
+  AlertDialogComponent,
+  AvatarComponent,
+  // TokenDisplayComponent,
+  LanguageSelectComponent,
+  PopupTranslationComponent
+  ],
   templateUrl: './reader.component.html',
   styleUrls: ['./reader.component.scss']
 })
@@ -55,15 +86,21 @@ export class ReaderComponent {
   tokens: Token[] = [];
 
   popup: PopupState = {
-    visible: false, x: 0, y: 0, original: '', translation: '', isWordPopup: false
+    visible: false,
+    x: 0,
+    y: 0,
+    original: '',
+    translation: '',
+    isWordPopup: false
   };
 
-  /** NEW: tiny popup that shows only translation + speaker */
   miniPopup: MiniPopupState = {
-    visible: false, x: 0, y: 0, translation: ''
+    visible: false,
+    x: 0,
+    y: 0,
+    translation: ''
   };
 
-  /** Store last sentence selection range so we can anchor words inside it */
   private lastSentenceRange: Range | null = null;
   private selectionTimer: any = null;
 
@@ -76,12 +113,12 @@ export class ReaderComponent {
     private elRef: ElementRef
   ) {}
 
-  // --- helpers ---------------------------------------------------------------
+  // helpers ----------------------------------------------------------
 
   isWord(t: Token) { return t.kind === 'word'; }
 
   private sanitizeText(s: string): string {
-    const SPEAKER = /[\u{1F50A}\u{1F509}\u{1F508}]/gu; // 🔊 🔉 🔈
+    const SPEAKER = /[\u{1F50A}\u{1F509}\u{1F508}]/gu;
     return (s || '').replace(SPEAKER, '').replace(/\s+/g, ' ').replace(/ ?' ?/g, "'").trim();
   }
 
@@ -98,36 +135,47 @@ export class ReaderComponent {
     const body = e?.error || e;
     const status = body?.providerStatus ?? e?.status ?? body?.status ?? 0;
     const message = body?.detail ?? body?.error?.detail ?? e?.message ?? '';
-    const isQuota = status === 429 || (typeof message === 'string' && /quota|rate.?limit|too\s*many\s*requests/i.test(message));
-    alert(isQuota ? 'Free translation quota exceeded. Please try again later or configure a translation key.'
-                  : 'Translate failed. Please try again.');
+    const isQuota =
+      status === 429 ||
+      (typeof message === 'string' && /quota|rate.?limit|too\s*many\s*requests/i.test(message));
+
+    alert(
+      isQuota
+        ? 'Free translation quota exceeded. Please try again later or configure a translation key.'
+        : 'Translate failed. Please try again.'
+    );
     console.error(`[Translate failed @ ${context}]`, { status, message, raw: e });
   }
 
-  hidePopup()    { this.popup.visible = false; }
-  hideMiniPopup(){ this.miniPopup.visible = false; }
+  hidePopup()     { this.popup.visible = false; }
+  hideMiniPopup() { this.miniPopup.visible = false; }
 
-  // --- main actions ----------------------------------------------------------
+  // main actions -----------------------------------------------------
 
   async doTranslate() {
     try {
-      const translatedText = await translateLongText(this.translate, this.sourceText, this.fromLang, this.toLang);
+      const translatedText = await translateLongText(
+        this.translate,
+        this.sourceText,
+        this.fromLang,
+        this.toLang
+      );
       this.tokens = tokenizeToArray(translatedText);
       this.hidePopup();
       this.hideMiniPopup();
 
-      // record seen
       const uid = this.fb.uid() || 'anon';
       const words = Array.from(new Set(this.tokens.filter(t => this.isWord(t)).map(t => t.text)));
       for (const w of words.slice(0, 50)) {
-        this.progress.recordEvent(uid, w, this.toLang, 'seen').subscribe({ next: () => {}, error: () => {} });
+        this.progress.recordEvent(uid, w, this.toLang, 'seen')
+          .subscribe({ next: () => {}, error: () => {} });
       }
     } catch (e) {
       this.handleTranslateError(e, 'doTranslate');
     }
   }
 
-  // Single-word click → big popup with actions
+  // Single-word click → word popup
   async clickToken(ev: MouseEvent) {
     const target = ev.target as HTMLElement;
     const tok = target.closest('.tok.word') as HTMLElement | null;
@@ -141,6 +189,7 @@ export class ReaderComponent {
       const rect = tok.getBoundingClientRect();
 
       this.hideMiniPopup();
+
       this.popup = {
         visible: true,
         x: Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8),
@@ -154,7 +203,7 @@ export class ReaderComponent {
     }
   }
 
-  // Multi-word selection → big popup (no actions) + remember range to anchor words
+  // selection → sentence popup
   async mouseUpSelection() {
     clearTimeout(this.selectionTimer);
 
@@ -183,14 +232,13 @@ export class ReaderComponent {
           visible: true,
           x: anchorX,
           y: anchorY,
-          original: text,                                   // show original sentence
-          translation: this.sanitizeText(sentenceTr || ''), // show translation
+          original: text,
+          translation: this.sanitizeText(sentenceTr || ''),
           isWordPopup: false
         };
         this.hideMiniPopup();
         this.lastSentenceRange = range.cloneRange();
 
-        // record seen
         const words = extractWordsOrdered(text);
         const uid = this.fb.uid() || 'anon';
         const uniqueSeen = uniqPreserveFirstLower(words).slice(0, 50);
@@ -204,30 +252,30 @@ export class ReaderComponent {
     }, 10);
   }
 
-  /** NEW: user picked a word inside the big popup → show mini popup at the word location */
+  // from sentence popup: user clicked a word
   async onPopupPickWord(word: string) {
     const w = (word || '').trim();
     if (!w) return;
 
-    // Find target word span in right pane; prefer within last selected sentence if available
     const rightPane: HTMLElement =
       (this.elRef.nativeElement as HTMLElement).querySelector('.right')!;
 
-    const spans = Array.from(rightPane.querySelectorAll<HTMLElement>('.tok.word .w'))
-      .filter(el => (el.textContent || '').trim().toLowerCase() === w.toLowerCase());
+    const spans = Array.from(
+      rightPane.querySelectorAll<HTMLElement>('.tok.word .w')
+    ).filter(el => (el.textContent || '').trim().toLowerCase() === w.toLowerCase());
 
     if (!spans.length) return;
 
     let targetEl: HTMLElement | null = null;
     if (this.lastSentenceRange) {
       const rangeRect = this.lastSentenceRange.getBoundingClientRect();
-      targetEl = spans.find(el => {
-        const r = el.getBoundingClientRect();
-        // a loose check: horizontally overlapping and vertically near the sentence rect
-        const horiz = r.right >= rangeRect.left && r.left <= rangeRect.right;
-        const vertNear = r.top >= rangeRect.top - 40 && r.bottom <= rangeRect.bottom + 40;
-        return horiz && vertNear;
-      }) || spans[0];
+      targetEl =
+        spans.find(el => {
+          const r = el.getBoundingClientRect();
+          const horiz = r.right >= rangeRect.left && r.left <= rangeRect.right;
+          const vertNear = r.top >= rangeRect.top - 40 && r.bottom <= rangeRect.bottom + 40;
+          return horiz && vertNear;
+        }) || spans[0];
     } else {
       targetEl = spans[0];
     }
@@ -247,7 +295,7 @@ export class ReaderComponent {
     }
   }
 
-  // --- TTS -------------------------------------------------------------------
+  // TTS --------------------------------------------------------------
 
   speakTranslation() {
     const txt = (this.popup.translation || '').trim();
@@ -272,13 +320,16 @@ export class ReaderComponent {
     this.tts.speak(word, this.toLangToBcp47());
   }
 
-  // --- listeners -------------------------------------------------------------
+  // lifecycle / events -----------------------------------------------
 
   ngOnInit() {
-    window.addEventListener('speak-word', ((e: any) => {
-      const w = (e.detail || '').trim();
-      if (w) this.tts.speak(w, this.toLangToBcp47());
-    }) as EventListener);
+    window.addEventListener(
+      'speak-word',
+      ((e: any) => {
+        const w = (e.detail || '').trim();
+        if (w) this.tts.speak(w, this.toLangToBcp47());
+      }) as EventListener
+    );
   }
 
   pause()  { this.tts.pause(); }

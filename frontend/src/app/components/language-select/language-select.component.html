@@ -1,0 +1,15 @@
+<div class="lang-select">
+  <label *ngIf="label" class="lang-label">
+    {{ label }}
+  </label>
+
+  <select
+    class="lang-control"
+    [ngModel]="value"
+    (ngModelChange)="onChange($event)"
+  >
+    <option *ngFor="let lang of filtered" [value]="lang.code">
+      {{ lang.flag }} {{ lang.name }}
+    </option>
+  </select>
+</div>

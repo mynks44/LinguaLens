@@ -9,8 +9,13 @@
   align-items: center;
   margin-bottom: 12px;
 
-  button { padding: 6px 10px; }
-  .lang-tag { margin-left: auto; opacity: .7; }
+  button {
+    padding: 6px 10px;
+  }
+  .lang-tag {
+    margin-left: auto;
+    opacity: 0.7;
+  }
 }
 
 .columns {
@@ -23,8 +28,18 @@
   display: grid;
   gap: 8px;
 
-  textarea { width: 100%; }
-  .cta { margin-top: 6px; }
+  textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #d0d0d0;
+    resize: vertical;
+  }
+
+  .cta {
+    margin-top: 6px;
+    padding: 6px 10px;
+  }
 }
 
 .right {
@@ -36,69 +51,35 @@
   line-height: 2.1;
   cursor: text;
   user-select: text;
-  background: #fff;
 }
 
-/* token styling */
 .tok {
   position: relative;
   display: inline-block;
-  padding: 0 .1rem;
+  padding: 0 0.1rem;
   user-select: text;
 }
 
 .tok.word {
-  border-bottom: 1px dotted rgba(0, 0, 0, .15);
+  border-bottom: 1px dotted rgba(0, 0, 0, 0.15);
 }
 
-/* hover speaker on words */
-.speak-word {
-  position: absolute;
-  top: -1.25rem;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  line-height: 1;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 0 4px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .15s ease;
-  margin-left: .25rem;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -ms-user-select: none;
+.lang-tag {
+  opacity: 0.6;
+  margin-left: 8px;
 }
 
-.tok.word:hover .speak-word {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.lang-tag { opacity: .6; margin-left: 8px; }
-
-/* --- Optional legacy blocks (safe to remove if unused) -------------------- */
-
-/* If you re-enable a per-word mini gloss list inside any component */
-.mini-gloss {
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-/* If you re-enable anchored inline balloons for word translations */
-.balloon {
+/* mini popup for word inside sentence */
+.mini-popup {
   position: fixed;
-  transform: translate(-50%, -100%); /* center on X, sit above Y anchor */
+  transform: translate(-50%, -100%);
   background: #111;
   color: #fff;
   font-size: 12px;
   line-height: 1.15;
   padding: 6px 8px;
   border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
   z-index: 9998;
   white-space: nowrap;
   display: inline-flex;
@@ -107,23 +88,30 @@
   pointer-events: auto;
 }
 
-.balloon .balloon-text {
+.mini-text {
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.balloon .balloon-icon { cursor: pointer; }
+.mini-speak {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+}
 
-.balloon .arrow {
+.mini-popup .arrow {
   position: absolute;
   left: 50%;
   bottom: -6px;
   transform: translateX(-50%);
-  width: 0; height: 0;
+  width: 0;
+  height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
   border-top: 6px solid #111;
 }
-
-.balloon:hover { background: #000; }

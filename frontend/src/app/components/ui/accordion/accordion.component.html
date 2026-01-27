@@ -1,0 +1,13 @@
+<div class="accordion-root">
+  <h3 *ngIf="title" class="accordion-title">{{ title }}</h3>
+
+  <!--
+    Usage example (in any parent):
+    <app-accordion>
+      <app-accordion-item title="Section 1">Content 1</app-accordion-item>
+      ...
+    </app-accordion>
+  -->
+
+  <ng-content></ng-content>
+</div>

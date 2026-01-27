@@ -1,0 +1,8 @@
+<div [ngClass]="{
+  'badge-default': variant === 'default',
+  'badge-secondary': variant === 'secondary',
+  'badge-destructive': variant === 'destructive',
+  'badge-outline': variant === 'outline'
+}">
+  <ng-content></ng-content>
+</div>

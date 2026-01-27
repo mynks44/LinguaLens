@@ -1,0 +1,8 @@
+<div class="alert" [ngClass]="{ 'alert-destructive': variant === 'destructive' }">
+  <div class="alert-body">
+    <div *ngIf="title" class="alert-title">{{ title }}</div>
+    <div class="alert-description">
+      <ng-content></ng-content>
+    </div>
+  </div>
+</div>

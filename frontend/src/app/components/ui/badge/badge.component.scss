@@ -1,0 +1,15 @@
+.badge-default {
+  @apply inline-flex items-center rounded-full border border-transparent bg-blue-600 text-white px-3 py-0.5 text-xs font-semibold;
+}
+
+.badge-secondary {
+  @apply inline-flex items-center rounded-full border border-transparent bg-gray-200 text-gray-800 px-3 py-0.5 text-xs font-semibold;
+}
+
+.badge-destructive {
+  @apply inline-flex items-center rounded-full border border-transparent bg-red-600 text-white px-3 py-0.5 text-xs font-semibold;
+}
+
+.badge-outline {
+  @apply inline-flex items-center rounded-full border text-gray-900 px-3 py-0.5 text-xs font-semibold;
+}

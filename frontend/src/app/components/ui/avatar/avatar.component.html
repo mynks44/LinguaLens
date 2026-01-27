@@ -1,0 +1,17 @@
+<div
+  class="avatar-root"
+  [style.width.px]="size"
+  [style.height.px]="size"
+  [attr.aria-label]="alt || initials"
+>
+  <img
+    *ngIf="src"
+    [src]="src"
+    [alt]="alt"
+    class="avatar-img"
+    (error)="src = null"
+  />
+  <div *ngIf="!src" class="avatar-fallback">
+    {{ initials }}
+  </div>
+</div>

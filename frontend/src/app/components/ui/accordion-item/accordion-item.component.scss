@@ -1,0 +1,51 @@
+.acc-item {
+  border-bottom: 1px solid rgba(0, 0, 0, .06);
+}
+
+.acc-trigger {
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  background: transparent;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+
+.acc-trigger:hover {
+  background: rgba(0, 0, 0, .03);
+}
+
+.acc-title {
+  flex: 1;
+}
+
+.acc-chevron {
+  transition: transform .18s ease;
+  opacity: .75;
+}
+
+.acc-chevron-open {
+  transform: rotate(180deg);
+}
+
+.acc-content-wrapper {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .18s ease;
+}
+
+.acc-content-wrapper.acc-open {
+  max-height: 400px; /* enough for typical content */
+}
+
+.acc-content {
+  padding: 0 16px 12px;
+  font-size: 14px;
+  color: #444;
+}

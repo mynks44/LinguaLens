@@ -2,50 +2,53 @@
   class="popup"
   *ngIf="visible"
   [ngStyle]="{ left: x + 'px', top: y + 'px' }"
-  (mousedown)="$event.stopPropagation()"
   (click)="$event.stopPropagation()"
 >
   <div class="card">
-    <!-- ORIGINAL (word or sentence) -->
-    <div class="orig" *ngIf="original" (mouseup)="onOrigMouseUp($event)">
-      {{ original }}
+    <span class="arrow" aria-hidden="true"></span>
+
+    <!-- ORIGINAL TEXT (word or sentence) -->
+    <div class="orig" *ngIf="original">
+      <!-- Sentence popup: each word clickable to spawn mini popup -->
+      <ng-container *ngIf="!isWordPopup; else singleWord">
+        <ng-container *ngFor="let w of originalWords; let i = index">
+          <button
+            type="button"
+            class="orig-word-btn"
+            (click)="onSentenceWordClick(w, $event)"
+          >
+            {{ w }}
+          </button>
+          <span *ngIf="i < originalWords.length - 1"> </span>
+        </ng-container>
+      </ng-container>
+
+      <!-- Word popup: just plain word -->
+      <ng-template #singleWord>
+        {{ original }}
+      </ng-template>
     </div>
 
     <!-- TRANSLATION + SPEAKER -->
     <div class="row">
-      <div class="translation">{{ translation }}</div>
+      <div class="translation">
+        {{ translation }}
+      </div>
       <button
-        class="speak-btn"
         type="button"
+        class="speak-btn"
         (click)="speak.emit()"
         aria-label="Speak translation"
         title="Speak translation"
-      >🔊</button>
-    </div>
-
-    <!-- Optional mini gloss chips (if you provide perWord) -->
-    <div class="mini-gloss" *ngIf="perWord.length">
-      <button
-        class="chip"
-        type="button"
-        *ngFor="let g of perWord"
-        (click)="onChipClick(g.src)"
-        [title]="g.src + ' → ' + g.dst"
       >
-        <b class="src">{{ g.src }}</b>
-        <span class="sep">—</span>
-        <span class="dst">{{ g.dst }}</span>
-        <span aria-hidden="true" class="icon">🔊</span>
+        🔊
       </button>
     </div>
 
-    <!-- Actions ONLY for word popup -->
+    <!-- WORD POPUP ACTIONS ONLY -->
     <div class="actions" *ngIf="isWordPopup">
-      <button type="button" (click)="speak.emit()">Speak</button>
       <button type="button" (click)="markKnown.emit()">Mark known</button>
       <button type="button" (click)="close.emit()">Close</button>
     </div>
-
-    <span class="arrow" aria-hidden="true"></span>
   </div>
 </div>

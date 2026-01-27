@@ -1,0 +1,18 @@
+.lang-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lang-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lang-control {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  font-size: 14px;
+}
