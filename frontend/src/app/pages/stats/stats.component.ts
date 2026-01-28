@@ -1,55 +1,109 @@
-import { Component } from '@angular/core';
-import { CommonModule, NgStyle } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { FirebaseService } from '../../core/services/firebase.service';
-import { ProgressService, ProgressOverview, ProgressWord } from '../../core/services/progress.service';
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+import { KnownWordsService, KnownWord } from '../../core/services/known-words.service';
+
+type StatsByLang = Record<string, number>;
+
+const LANG_NAMES: Record<string, string> = {
+  en: 'English',
+  fr: 'French',
+  es: 'Spanish',
+  de: 'German',
+  hi: 'Hindi'
+};
+
+const LANG_FLAGS: Record<string, string> = {
+  en: '🇺🇸',
+  fr: '🇫🇷',
+  es: '🇪🇸',
+  de: '🇩🇪',
+  hi: '🇮🇳'
+};
 
 @Component({
   selector: 'app-stats',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgStyle],
+  imports: [CommonModule],
   templateUrl: './stats.component.html',
   styleUrls: ['./stats.component.scss']
 })
-export class StatsComponent {
-  lang = 'fr';
+export class StatsComponent implements OnInit {
+  words: KnownWord[] = [];
+  stats: StatsByLang = {};
+  totalWords = 0;
+  recentWords: KnownWord[] = [];
   loading = false;
+  error = '';
 
-  data: ProgressOverview | null = null;
-  topLow:  ProgressWord[] = [];
-  topHigh: ProgressWord[] = [];
+  maxCount = 1;
 
-  constructor(private fb: FirebaseService, private progress: ProgressService) {}
-
-  ngOnInit() { this.refresh(); }
-
-  refresh() {
-    const userId = this.fb.uid() || 'anon';
+  async ngOnInit() {
     this.loading = true;
+    this.error = '';
 
-    this.progress.getOverview(userId, this.lang).subscribe({
-      next: d => this.data = d,
-      error: () => this.data = {
-        totalWords: 0, strong: 0, medium: 0, weak: 0,
-        seenSum: 0, knownSum: 0, heardSum: 0
-      }
-    });
-
-    this.progress.getTopWords(userId, this.lang, 'low', 10).subscribe({
-      next: rows => this.topLow = rows || [],
-      error: () => this.topLow = []
-    });
-
-    this.progress.getTopWords(userId, this.lang, 'high', 10).subscribe({
-      next: rows => this.topHigh = rows || [],
-      error: () => this.topHigh = []
-    });
-
-    this.loading = false;
+    try {
+      // Inject service manually to avoid constructor signature confusion:
+      // Better pattern is normal DI; assuming you add constructor like:
+      // constructor(private known: KnownWordsService) {}
+      // I'll use that below.
+    } catch (e) {
+      // NO-OP
+    }
   }
 
-  confBarStyle(conf: number) {
-    const pct = Math.max(0, Math.min(1, conf || 0)) * 100;
-    return { width: pct + '%', height: '8px', display: 'inline-block' };
+  constructor(private known: KnownWordsService) {}
+
+  async load() {
+    try {
+      const all = await this.known.listAll();
+      this.words = all;
+      this.totalWords = all.length;
+
+      this.buildStats();
+      this.buildRecent();
+    } catch (e) {
+      console.error('[Stats] load failed', e);
+      this.error = 'Failed to load stats. Please try again.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async ngAfterViewInit() {
+    // Actually load words once the view is ready
+    await this.load();
+  }
+
+  private buildStats() {
+    const stats: StatsByLang = {};
+    for (const w of this.words) {
+      stats[w.lang] = (stats[w.lang] || 0) + 1;
+    }
+    this.stats = stats;
+    const vals = Object.values(stats);
+    this.maxCount = vals.length ? Math.max(...vals, 1) : 1;
+  }
+
+  private buildRecent() {
+    this.recentWords = [...this.words]
+      .sort(
+        (a, b) =>
+          new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+      )
+      .slice(0, 5);
+  }
+
+  langName(lang: string) {
+    return LANG_NAMES[lang] || lang.toUpperCase();
+  }
+
+  langFlag(lang: string) {
+    return LANG_FLAGS[lang] || '🌐';
+  }
+
+  barWidth(count: number): string {
+    if (!this.maxCount) return '0%';
+    return `${(count / this.maxCount) * 100}%`;
   }
 }

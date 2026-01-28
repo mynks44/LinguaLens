@@ -1,66 +1,77 @@
-<div class="wrap">
-  <h2>Progress</h2>
-
-  <div class="controls">
-    <label>Language</label>
-    <select [(ngModel)]="lang" (change)="refresh()">
-      <option value="fr">French</option>
-      <option value="en">English</option>
-      <option value="es">Spanish</option>
-      <option value="de">German</option>
-      <option value="hi">Hindi</option>
-    </select>
-    <button (click)="refresh()">Refresh</button>
-  </div>
-
-  <div *ngIf="loading">Loading…</div>
-
-  <div *ngIf="data" class="cards">
+<div class="stats-wrap">
+  <div class="grid">
+    <!-- Overview -->
     <div class="card">
-      <div class="title">Totals</div>
-      <div>Total words: <b>{{ data.totalWords }}</b></div>
-      <div>Seen (sum): {{ data.seenSum }}</div>
-      <div>Known (sum): {{ data.knownSum }}</div>
-      <div>Heard (sum): {{ data.heardSum }}</div>
+      <h2 class="card-title">Overview</h2>
+
+      <div class="total-box">
+        <div class="total-number">{{ totalWords }}</div>
+        <div class="total-label">Total known words</div>
+      </div>
+
+      <h3 class="section-title">Words by language</h3>
+
+      <ng-container *ngIf="!loading; else loadingTpl">
+        <ng-container *ngIf="stats | keyvalue as entries; else noStatsTpl">
+          <div class="lang-list" *ngIf="entries.length; else noStatsTpl">
+            <div class="lang-row" *ngFor="let item of entries">
+              <div class="lang-row-head">
+                <span class="lang-title">
+                  <span class="flag">{{ langFlag(item.key) }}</span>
+                  <span>{{ langName(item.key) }}</span>
+                </span>
+                <span class="count">{{ item.value }}</span>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-fill" [style.width]="barWidth(item.value)"></div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+      </ng-container>
     </div>
 
+    <!-- Recently added -->
     <div class="card">
-      <div class="title">Confidence Bands</div>
-      <div>Strong (≥0.8): {{ data.strong }}</div>
-      <div>Medium (0.5–0.79): {{ data.medium }}</div>
-      <div>Weak (<0.5): {{ data.weak }}</div>
+      <h2 class="card-title">Recently added</h2>
+
+      <ng-container *ngIf="!loading; else loadingTpl">
+        <ng-container *ngIf="recentWords.length; else emptyRecentTpl">
+          <div class="recent-list">
+            <div class="recent-item" *ngFor="let w of recentWords; let i = index">
+              <div class="left">
+                <span class="emoji">{{ langFlag(w.lang) }}</span>
+                <div class="text">
+                  <div class="word">{{ w.text }}</div>
+                  <div class="lang">{{ langName(w.lang) }}</div>
+                </div>
+              </div>
+              <div class="time">
+                {{ w.addedAt | date : 'MMM d, HH:mm' }}
+              </div>
+            </div>
+          </div>
+        </ng-container>
+      </ng-container>
     </div>
   </div>
 
-  <div class="lists">
-    <div class="list">
-      <h3>Needs Review (lowest confidence)</h3>
-      <table *ngIf="topLow.length; else nlow">
-        <tr><th>Word</th><th>Conf</th></tr>
-        <tr *ngFor="let r of topLow">
-          <td>{{ r.word }}</td>
-          <td>
-            <div class="bar"><span [ngStyle]="confBarStyle(r.confidence)"></span></div>
-            {{ (r.confidence || 0) | number:'1.2-2' }}
-          </td>
-        </tr>
-      </table>
-      <ng-template #nlow><p>None yet.</p></ng-template>
-    </div>
+  <ng-template #loadingTpl>
+    <div class="loading">Loading stats…</div>
+  </ng-template>
 
-    <div class="list">
-      <h3>Strongest (highest confidence)</h3>
-      <table *ngIf="topHigh.length; else nhigh">
-        <tr><th>Word</th><th>Conf</th></tr>
-        <tr *ngFor="let r of topHigh">
-          <td>{{ r.word }}</td>
-          <td>
-            <div class="bar"><span [ngStyle]="confBarStyle(r.confidence)"></span></div>
-            {{ (r.confidence || 0) | number:'1.2-2' }}
-          </td>
-        </tr>
-      </table>
-      <ng-template #nhigh><p>None yet.</p></ng-template>
+  <ng-template #noStatsTpl>
+    <p class="empty">
+      No words learned yet. Start reading!
+    </p>
+  </ng-template>
+
+  <ng-template #emptyRecentTpl>
+    <div class="empty-block">
+      <p class="title">No recent words</p>
+      <p class="subtitle">
+        Words you mark as known will appear here
+      </p>
     </div>
-  </div>
+  </ng-template>
 </div>
