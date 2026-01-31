@@ -1,44 +1,108 @@
-<div class="wrap">
-  <h2>Known Words</h2>
+<div class="known-wrap">
+  <div class="panel">
+    <div class="header">
+      <div>
+        <h1>Known words</h1>
+        <p class="subtitle">
+          {{ allWords.length }} word{{ allWords.length !== 1 ? 's' : '' }} saved
+        </p>
+        <p *ngIf="error" class="error">
+          {{ error }}
+        </p>
+      </div>
 
-<div class="controls">
-  <input [(ngModel)]="q" (input)="applyFilters()" placeholder="Search word..." />
-  
-  <select [(ngModel)]="filterLang" (change)="applyFilters()">
-    <option value="">All languages</option>
-    <option *ngFor="let l of langs" [value]="l">{{ l }}</option>
-  </select>
+      <div class="controls">
+        <label class="filter-label">
+          Language
+          <select
+            class="filter-select"
+            [(ngModel)]="filterLang"
+            (ngModelChange)="onChangeFilter($event)"
+          >
+            <option *ngFor="let lang of languages" [value]="lang.code">
+              <span *ngIf="lang.flag">{{ lang.flag }}</span>
+              {{ lang.name }}
+            </option>
+          </select>
+        </label>
 
-  <button (click)="exportFile()">Export JSON</button>
-  <button (click)="clearAll()" title="Remove all known words">Clear all</button>
-</div>
+        <button
+          type="button"
+          class="btn btn-danger"
+          [disabled]="!allWords.length"
+          (click)="clearAll()"
+        >
+          Clear all
+        </button>
+      </div>
+    </div>
 
+    <div *ngIf="loading" class="loading">
+      Loading known words…
+    </div>
 
-  <div class="stats">
-    <span *ngFor="let s of statEntries">{{ s[0] }}: {{ s[1] }}</span>
-    <span class="count">Total: {{ words.length }}</span>
+    <ng-container *ngIf="!loading">
+      <div *ngIf="filteredWords.length; else emptyState">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Word</th>
+                <th>Language</th>
+                <th>Added at</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let w of filteredWords; trackBy: trackByWord"
+              >
+                <td class="word-cell">{{ w.text }}</td>
+                <td class="lang-cell">
+                  <span class="lang-pill">
+                    <span class="flag">
+                      {{ langFlags[w.lang] || '🌐' }}
+                    </span>
+                    <span class="code">
+                      {{ w.lang.toUpperCase() }}
+                    </span>
+                  </span>
+                </td>
+                <td class="date-cell">
+                  {{ w.addedAt | date : 'MMM d, y HH:mm' }}
+                </td>
+                <td class="actions-cell">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="speak(w)"
+                    title="Speak"
+                  >
+                    🔊
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn danger"
+                    (click)="removeWord(w)"
+                    title="Remove"
+                  >
+                    🗑
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <ng-template #emptyState>
+        <div class="empty">
+          <p class="title">No known words yet</p>
+          <p class="subtitle">
+            Start reading and mark words as known to build your vocabulary.
+          </p>
+        </div>
+      </ng-template>
+    </ng-container>
   </div>
-
-  <table class="tbl" *ngIf="filtered.length; else empty">
-    <thead>
-      <tr>
-        <th style="width:40%">Word</th>
-        <th style="width:15%">Lang</th>
-        <th style="width:25%">Added</th>
-        <th style="width:20%"></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let w of filtered">
-        <td>{{ w.text }}</td>
-        <td>{{ w.lang }}</td>
-        <td>{{ w.addedAt | date:'medium' }}</td>
-        <td><button (click)="remove(w)">Remove</button></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <ng-template #empty>
-    <p>No known words yet. Go to the Reader, click a word, then hit “Mark known”.</p>
-  </ng-template>
 </div>

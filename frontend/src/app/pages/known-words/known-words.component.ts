@@ -1,126 +1,134 @@
-import { Injectable, inject } from '@angular/core';
-import { Firestore, collection, doc, setDoc, getDocs, deleteDoc, writeBatch } from '@angular/fire/firestore';
-import { AuthService } from '../auth/auth.service';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NgFor, NgIf, DatePipe } from '@angular/common';
 
-@Injectable({ providedIn: 'root' })
-export class KnownWordsService {
-  private db = inject(Firestore);
-  private auth = inject(AuthService);
+import { KnownWordsService, KnownWord } from '../../core/services/known-words.service';
+import { TtsService } from '../../core/services/tts.service';
 
-  private pathFor(uid: string) { return `users/${uid}/knownWords`; }
-
-  async add(word: string, lang: string) {
-    const uid = this.auth.uid();
-    if (!uid) throw new Error('Not signed in');
-    const id = `${lang}:${word.toLowerCase()}`;
-    await setDoc(doc(this.db, this.pathFor(uid), id), {
-      word, lang, createdAt: Date.now()
-    }, { merge: true });
-  }
-
-  async list({ lang, q }: { lang?: string, q?: string }) {
-    const uid = this.auth.uid();
-    if (!uid) throw new Error('Not signed in');
-    const snap = await getDocs(collection(this.db, this.pathFor(uid)));
-    const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-    return items.filter(w =>
-      (!q || (w.word || '').toLowerCase().includes(q.toLowerCase())) &&
-      (!lang || w.lang === lang)
-    );
-  }
-
-  async removeById(id: string) {
-    const uid = this.auth.uid();
-    if (!uid) throw new Error('Not signed in');
-    await deleteDoc(doc(this.db, this.pathFor(uid), id));
-  }
-
-  async clearAll() {
-    const uid = this.auth.uid();
-    if (!uid) throw new Error('Not signed in');
-    const snap = await getDocs(collection(this.db, this.pathFor(uid)));
-    const batch = writeBatch(this.db);
-    snap.docs.forEach(docSnap => {
-      batch.delete(docSnap.ref);
-    });
-    await batch.commit();
-  }
-}
+type LangOption = { code: string; name: string; flag?: string };
 
 @Component({
   selector: 'app-known-words',
   standalone: true,
-  imports: [FormsModule, NgFor, NgIf, DatePipe],
+  imports: [CommonModule, FormsModule],
   templateUrl: './known-words.component.html',
   styleUrls: ['./known-words.component.scss']
 })
-export class KnownWordsComponent {
-  q = '';
-  filterLang = '';
+export class KnownWordsComponent implements OnInit {
+  // all words from Firestore
+  allWords: KnownWord[] = [];
+  // filtered + sorted view
+  filteredWords: KnownWord[] = [];
 
-  words: any[] = [];
-  filtered: any[] = [];
-  langs: string[] = [];
-  statEntries: [string, number][] = [];
+  filterLang = 'all';
+  loading = false;
+  error = '';
 
-  constructor(private known: KnownWordsService) {}
+  languages: LangOption[] = [
+    { code: 'all', name: 'All languages' },
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'fr', name: 'French',  flag: '🇫🇷' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'de', name: 'German',  flag: '🇩🇪' },
+    { code: 'hi', name: 'Hindi',   flag: '🇮🇳' }
+  ];
+
+  langFlags: Record<string, string> = {
+    en: '🇺🇸',
+    fr: '🇫🇷',
+    es: '🇪🇸',
+    de: '🇩🇪',
+    hi: '🇮🇳'
+  };
+
+  constructor(
+    private known: KnownWordsService,
+    private tts: TtsService
+  ) {}
 
   async ngOnInit() {
-    await this.refresh();
+    await this.loadWords();
   }
 
-  async refresh() {
-    const items = await this.known.list({
-      lang: this.filterLang || undefined,
-      q: this.q || undefined
-    });
-
-    this.words = items;
-    this.langs = Array.from(new Set(items.map(w => w.lang))).sort();
-
-    const stats = items.reduce<Record<string, number>>((acc, w) => {
-      acc[w.lang] = (acc[w.lang] || 0) + 1;
-      return acc;
-    }, {});
-    this.statEntries = Object.entries(stats).sort((a, b) => a[0].localeCompare(b[0])) as [string, number][];
-
-    this.applyFilters();
+  private async loadWords() {
+    this.loading = true;
+    this.error = '';
+    try {
+      const all = await this.known.listAll();
+      this.allWords = all;
+      this.applyFilter();
+    } catch (e) {
+      console.error('[KnownWords] load failed', e);
+      this.error = 'Failed to load known words. Please try again.';
+    } finally {
+      this.loading = false;
+    }
   }
 
-  applyFilters() {
-    const qlc = this.q.trim().toLowerCase();
-    this.filtered = this.words.filter(w =>
-      (!qlc || (w.word || '').toLowerCase().includes(qlc)) &&
-      (!this.filterLang || w.lang === this.filterLang)
+  onChangeFilter(lang: string) {
+    this.filterLang = lang;
+    this.applyFilter();
+  }
+
+  private applyFilter() {
+    const list =
+      this.filterLang === 'all'
+        ? [...this.allWords]
+        : this.allWords.filter(w => w.lang === this.filterLang);
+
+    // sort newest first
+    this.filteredWords = list.sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
     );
   }
 
-  async remove(w: any) {
-    if (!w.id) return;
-    if (confirm(`Remove "${w.word}" [${w.lang}]?`)) {
-      await this.known.removeById(w.id);
-      await this.refresh();
-    }
+  trackByWord(idx: number, w: KnownWord) {
+    // stable id per word/lang
+    return `${w.lang}_${w.text}`;
+  }
+
+  speak(word: KnownWord) {
+    if (!word.text) return;
+    this.tts.speak(word.text, this.langToBcp47(word.lang));
+  }
+
+  private langToBcp47(lang: string) {
+    const map: Record<string, string> = {
+      en: 'en-US',
+      fr: 'fr-FR',
+      es: 'es-ES',
+      de: 'de-DE',
+      hi: 'hi-IN'
+    };
+    return map[lang] || lang;
   }
 
   async clearAll() {
-    if (confirm('Clear ALL known words?')) {
+    if (!this.allWords.length) return;
+    if (!confirm(`Clear all ${this.allWords.length} known word(s)?`)) return;
+
+    try {
       await this.known.clearAll();
-      await this.refresh();
+      this.allWords = [];
+      this.applyFilter();
+    } catch (e) {
+      console.error('[KnownWords] clearAll failed', e);
+      alert('Failed to clear known words. Please try again.');
     }
   }
 
-  async exportFile() {
-    const json = JSON.stringify(this.words, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'known-words.json';
-    a.click();
-    URL.revokeObjectURL(url);
+  async removeWord(w: KnownWord) {
+    if (!confirm(`Remove "${w.text}" (${w.lang.toUpperCase()})?`)) return;
+
+    try {
+      await this.known.remove(w.text, w.lang);
+      this.allWords = this.allWords.filter(
+        item => !(item.text === w.text && item.lang === w.lang)
+      );
+      this.applyFilter();
+    } catch (e) {
+      console.error('[KnownWords] removeWord failed', e);
+      alert('Failed to remove word. Please try again.');
+    }
   }
 }

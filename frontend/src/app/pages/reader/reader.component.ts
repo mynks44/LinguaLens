@@ -12,6 +12,8 @@ import { FirebaseService } from '../../core/services/firebase.service';
 import { Token, tokenizeToArray, isWordToken } from '../../core/utils/tokenize';
 import { PopupTranslationComponent } from '../../components/popup-translation/popup-translation.component';
 import { LanguageSelectComponent } from '../../components/language-select/language-select.component';
+
+// UI components (from lovable-style design)
 import { AccordionComponent } from '../../components/ui/accordion/accordion.component';
 import { AccordionItemComponent } from '../../components/ui/accordion-item/accordion-item.component';
 import { AlertComponent } from '../../components/ui/alert/alert.component';
@@ -27,9 +29,9 @@ type PopupState = {
   visible: boolean;
   x: number;
   y: number;
-  original: string;
-  translation: string;
-  isWordPopup: boolean;
+  original: string;     // word or sentence
+  translation: string;  // translation
+  isWordPopup: boolean; // show actions if true
 };
 
 type MiniPopupState = {
@@ -45,7 +47,13 @@ function extractWordsOrdered(s: string): string[] {
 }
 function uniqPreserveFirstLower(words: string[]): string[] {
   const seen = new Set<string>(); const out: string[] = [];
-  for (const w of words) { const k = w.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(w); } }
+  for (const w of words) {
+    const k = w.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(w);
+    }
+  }
   return out;
 }
 
@@ -57,21 +65,20 @@ function uniqPreserveFirstLower(words: string[]): string[] {
     NgFor,
     NgIf,
     NgStyle,
+    // core components
     PopupTranslationComponent,
     LanguageSelectComponent,
-BadgeComponent,
-  ButtonComponent,
-  BreadcrumbComponent,
-  CardComponent,
-  CalendarComponent,
-  AccordionComponent,
-  AccordionItemComponent,
-  AlertComponent,
-  AlertDialogComponent,
-  AvatarComponent,
-  // TokenDisplayComponent,
-  LanguageSelectComponent,
-  PopupTranslationComponent
+    // UI components (can be used in template as needed)
+    BadgeComponent,
+    ButtonComponent,
+    BreadcrumbComponent,
+    CardComponent,
+    CalendarComponent,
+    AccordionComponent,
+    AccordionItemComponent,
+    AlertComponent,
+    AlertDialogComponent,
+    AvatarComponent
   ],
   templateUrl: './reader.component.html',
   styleUrls: ['./reader.component.scss']
@@ -119,15 +126,32 @@ export class ReaderComponent {
 
   private sanitizeText(s: string): string {
     const SPEAKER = /[\u{1F50A}\u{1F509}\u{1F508}]/gu;
-    return (s || '').replace(SPEAKER, '').replace(/\s+/g, ' ').replace(/ ?' ?/g, "'").trim();
+    return (s || '')
+      .replace(SPEAKER, '')
+      .replace(/\s+/g, ' ')
+      .replace(/ ?' ?/g, "'")
+      .trim();
   }
 
   toLangToBcp47() {
-    const m: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
+    const m: Record<string, string> = {
+      en: 'en-US',
+      fr: 'fr-FR',
+      es: 'es-ES',
+      de: 'de-DE',
+      hi: 'hi-IN'
+    };
     return m[this.toLang] || this.toLang;
   }
+
   fromLangToBcp47() {
-    const m: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', hi: 'hi-IN' };
+    const m: Record<string, string> = {
+      en: 'en-US',
+      fr: 'fr-FR',
+      es: 'es-ES',
+      de: 'de-DE',
+      hi: 'hi-IN'
+    };
     return m[this.fromLang] || this.fromLang;
   }
 
@@ -164,10 +188,16 @@ export class ReaderComponent {
       this.hidePopup();
       this.hideMiniPopup();
 
-      const uid = this.fb.uid() || 'anon';
-      const words = Array.from(new Set(this.tokens.filter(t => this.isWord(t)).map(t => t.text)));
+      // record "seen" for up to 50 unique words
+      const uid = this.fb.uid();
+      if (!uid) return; // not signed in yet (should be rare because of fb.ready)
+
+      const words = Array.from(
+        new Set(this.tokens.filter(t => this.isWord(t)).map(t => t.text))
+      );
       for (const w of words.slice(0, 50)) {
-        this.progress.recordEvent(uid, w, this.toLang, 'seen')
+        this.progress
+          .recordEvent(uid, w, this.toLang, 'seen')
           .subscribe({ next: () => {}, error: () => {} });
       }
     } catch (e) {
@@ -185,7 +215,12 @@ export class ReaderComponent {
     if (!word || !isWordToken(word)) return;
 
     try {
-      const backText = await translateLongText(this.translate, word, this.toLang, this.fromLang);
+      const backText = await translateLongText(
+        this.translate,
+        word,
+        this.toLang,
+        this.fromLang
+      );
       const rect = tok.getBoundingClientRect();
 
       this.hideMiniPopup();
@@ -222,10 +257,18 @@ export class ReaderComponent {
       if (!text) return;
 
       try {
-        const sentenceTr = await translateLongText(this.translate, text, this.toLang, this.fromLang);
+        const sentenceTr = await translateLongText(
+          this.translate,
+          text,
+          this.toLang,
+          this.fromLang
+        );
 
         const rect = range.getBoundingClientRect();
-        const anchorX = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
+        const anchorX = Math.min(
+          Math.max(rect.left + rect.width / 2, 8),
+          window.innerWidth - 8
+        );
         const anchorY = Math.max(rect.top - 6, 8);
 
         this.popup = {
@@ -239,11 +282,15 @@ export class ReaderComponent {
         this.hideMiniPopup();
         this.lastSentenceRange = range.cloneRange();
 
+        // record seen words from this sentence
         const words = extractWordsOrdered(text);
-        const uid = this.fb.uid() || 'anon';
+        const uid = this.fb.uid();
+        if (!uid) return;
+
         const uniqueSeen = uniqPreserveFirstLower(words).slice(0, 50);
         for (const w of uniqueSeen) {
-          this.progress.recordEvent(uid, w, this.toLang, 'seen')
+          this.progress
+            .recordEvent(uid, w, this.toLang, 'seen')
             .subscribe({ next: () => {}, error: () => {} });
         }
       } catch (e) {
@@ -283,7 +330,12 @@ export class ReaderComponent {
     const rect = targetEl.getBoundingClientRect();
 
     try {
-      const back = await translateLongText(this.translate, w, this.toLang, this.fromLang);
+      const back = await translateLongText(
+        this.translate,
+        w,
+        this.toLang,
+        this.fromLang
+      );
       this.miniPopup = {
         visible: true,
         x: Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8),
@@ -341,9 +393,14 @@ export class ReaderComponent {
     if (!w) return;
     try {
       await this.known.add(w, this.toLang);
-      const uid = this.fb.uid() || 'anon';
-      this.progress.recordEvent(uid, w, this.toLang, 'known')
-        .subscribe({ next: () => {}, error: () => {} });
+
+      const uid = this.fb.uid();
+      if (uid) {
+        this.progress
+          .recordEvent(uid, w, this.toLang, 'known')
+          .subscribe({ next: () => {}, error: () => {} });
+      }
+
       alert(`Saved as known: "${w}" [${this.toLang}]`);
     } catch (e) {
       alert('Could not save the word. Check your internet and Firebase rules.');
