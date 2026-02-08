@@ -3,7 +3,6 @@ const { driver } = require('../db/neo4j');
 
 function nowMs() { return Date.now(); }
 
-// ----- POST /progress/event ---------------------------------------------------
 router.post('/event', async (req, res, next) => {
   const { userId, word, lang, type } = req.body || {};
   if (!userId || !word || !lang || !['seen','known','heard'].includes(type)) {
@@ -57,7 +56,6 @@ const result = await session.run(`
   }
 });
 
-// ----- GET /progress/overview -------------------------------------------------
 router.get('/overview', async (req, res, next) => {
   const userId = req.query.userId;
   const lang = req.query.lang || null;
@@ -90,14 +88,11 @@ router.get('/overview', async (req, res, next) => {
   }
 });
 
-// ----- GET /progress/top-words -----------------------------------------------
-// ----- GET /progress/top-words -----------------------------------------------
-// /progress/top-words?userId=...&lang=fr&metric=confidence|seen|known|heard&order=high|low&limit=10
+
 router.get('/top-words', async (req, res, next) => {
   const userId = String(req.query.userId || '');
   const lang   = req.query.lang ? String(req.query.lang) : null;
 
-  // sanitize metric and order
   const metricParam = String(req.query.metric || 'confidence').toLowerCase();
   const allowedMetrics = new Set(['confidence', 'seen', 'known', 'heard']);
   const metric = allowedMetrics.has(metricParam) ? metricParam : 'confidence';
@@ -105,7 +100,6 @@ router.get('/top-words', async (req, res, next) => {
   const orderParam = String(req.query.order || 'high').toLowerCase();
   const orderDir = orderParam === 'low' ? 'ASC' : 'DESC';
 
-  // sanitize limit
   const limitParsed = Number.parseInt(String(req.query.limit ?? '20'), 10);
   const limit = Number.isFinite(limitParsed) ? Math.max(1, Math.min(limitParsed, 100)) : 20;
 

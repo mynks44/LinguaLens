@@ -2,10 +2,9 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-/* ---------- config ---------- */
-const MYMEMORY_EMAIL = process.env.MYMEMORY_EMAIL || ''; // optional
-const MYMEMORY_KEY   = process.env.MYMEMORY_KEY   || ''; // optional
-const LIBRE_URL      = process.env.LIBRE_URL      || ''; // optional fallback, e.g. "http://localhost:5000"
+const MYMEMORY_EMAIL = process.env.MYMEMORY_EMAIL || ''; 
+const MYMEMORY_KEY   = process.env.MYMEMORY_KEY   || '';
+const LIBRE_URL      = process.env.LIBRE_URL      || ''; 
 
 const mymem = axios.create({
   baseURL: 'https://api.mymemory.translated.net',
@@ -21,29 +20,47 @@ const libre = LIBRE_URL
     })
   : null;
 
-/* ---------- helpers ---------- */
 
-function chunkText(s, max = 200) {
-  const text = String(s || '').trim();
+function chunkText(s, max = 900) {
+  const text = String(s || '').replace(/\s+/g, ' ').trim();
   if (!text) return [];
   if (text.length <= max) return [text];
 
-  const parts = text.match(/[^.!?]+[.!?]+|\S+/g) || [text];
-  const out = [];
-  let cur = '';
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
 
-  for (const raw of parts) {
-    const p = raw.trim();
+  const out = [];
+  let cur = "";
+
+  for (const sent of sentences) {
+    const p = sent.trim();
     if (!p) continue;
-    if (!cur) { cur = p; continue; }
-    if ((cur + ' ' + p).length <= max) cur = cur + ' ' + p;
-    else { out.push(cur); cur = p.length > max ? p.slice(0, max) : p; }
+
+    if (!cur) {
+      cur = p;
+      continue;
+    }
+
+    if ((cur + " " + p).length <= max) {
+      cur = cur + " " + p;
+    } else {
+      out.push(cur);
+      cur = p;
+    }
   }
+
   if (cur) out.push(cur);
-  return out;
+
+  const finalOut = [];
+  for (const c of out) {
+    if (c.length <= max) finalOut.push(c);
+    else {
+      for (let i = 0; i < c.length; i += max) finalOut.push(c.slice(i, i + max));
+    }
+  }
+  return finalOut;
 }
 
-/** One MyMemory request. Retries small, throws QuotaExceeded on 429. */
+
 async function myMemoryOnce(text, from, to) {
   const params = { q: text, langpair: `${from}|${to}` };
   if (MYMEMORY_EMAIL) params.de = MYMEMORY_EMAIL;
@@ -84,7 +101,6 @@ async function myMemoryOnce(text, from, to) {
   }
 }
 
-/** Optional LibreTranslate fallback. */
 async function libreOnce(text, from, to) {
   if (!libre) throw new Error('Libre not configured');
   const r = await libre.post('/translate', {
@@ -95,30 +111,29 @@ async function libreOnce(text, from, to) {
   return String(t);
 }
 
-/** Long text: chunk → sequential translate (MyMemory; fallback to Libre on quota) → join. */
 async function translateLong(text, from, to) {
-  const chunks = chunkText(text, 200);
+  const chunks = chunkText(text, 900); // bigger chunks => fewer API calls
   const out = [];
 
   for (const c of chunks) {
-    let piece = '';
+    let piece = "";
     try {
       piece = await myMemoryOnce(c, from, to);
     } catch (e) {
-      if (e?.name === 'QuotaExceeded' && libre) {
+      if (e?.name === "QuotaExceeded" && libre) {
         piece = await libreOnce(c, from, to);
       } else {
         throw e;
       }
     }
     out.push(piece.trim());
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 60));
   }
 
-  return out.join(' ').trim();
+  return out.join(" ").trim();
 }
 
-/* ---------- route ---------- */
+
 
 router.post('/', async (req, res) => {
   try {
